@@ -12,4 +12,9 @@ All Rights Reserved
 """
 
 
-class HostNotFound(Exception): ...
+class HostNotFound(Exception):
+    ...
+
+
+class DuplicateNodeName(Exception):
+    ...
