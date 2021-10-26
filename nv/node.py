@@ -68,7 +68,7 @@ class Node:
         self.log.debug(f"Found host: {self.host}")
 
         # Check if another node with this name already exists
-        if self.node_exists(node_name=self.name):
+        if utils.node_exists(host=self.host, node_name=self.name):
             raise exceptions.DuplicateNodeName(
                 "A node with the name " + self.name + " already exists on this network."
             )
@@ -311,59 +311,3 @@ class Node:
             "Scanning LAN for host is not yet implemented, please manually specify a host instead"
         )
         return _autodiscover_host()
-
-    def node_exists(self, node_id=None, node_name=None, node_ip=None):
-        """
-        Check if a node exists in the network. If the node exists, information
-        about the node is returned, otherwise None.
-        """
-
-        # Ensure only one node identifier is provided
-        assert (
-            bool(node_id) ^ bool(node_name) ^ bool(node_ip)
-        ), "You must specify exactly one of `node_id`, `node_name`, or `node_ip`."
-
-        params = {
-            "node_id": node_id,
-            "node_name": node_name,
-            "node_ip": node_ip,
-        }
-
-        r = requests.get(self.host + "/get_node_info", params=params)
-
-        if r.status_code == 200:
-            return r.json() or None
-
-    # def subscribe(self, topic: str, callback) -> None:
-    #     """
-    #     Creates a subscription to a topic using socketio.
-    #     """
-    #     self.sio.on("_topic" + topic, callback)
-
-    # def publish(self, topic: str, data) -> None:
-    #     """
-    #     Publishes a message to a topic using socketio.
-    #     """
-    #     print("publishing to topic: " + topic)
-    #     self.sio.emit("new_message", {"topic": topic, "data": data})
-
-    # def create_timer(self, interval, callback, **kwargs):
-    #     """
-    #     Create a timer which calls the callback function every `time` seconds
-    #     """
-    #     timer = threading.Thread(
-    #         target=self._timer_thread, args=(interval, callback), kwargs=kwargs
-    #     )
-    #     timer.start()
-    #     return timer
-
-    # def _timer_thread(self, interval, callback, **kwargs):
-    #     while True:
-    #         callback(**kwargs)
-    #         time.sleep(interval)
-
-    # def destroy_timer(self, timer):
-    #     """
-    #     Destroy a timer
-    #     """
-    #     timer.cancel()
