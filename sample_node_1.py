@@ -6,8 +6,6 @@ class SampleNode1(nv.Node):
         super().__init__(name="test_node_1")
         # self.create_timer(interval=1, callback=publish_on_timer, node=self)
 
-        self.discover_host()
-
 
 def main():
     node = SampleNode1()

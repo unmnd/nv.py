@@ -13,6 +13,6 @@ All Rights Reserved
 """
 
 
-import nv.logging
-from nv.version import VERSION, MAGIC
+from nv.utils import *
+from nv.exceptions import *
 from nv.node import Node
