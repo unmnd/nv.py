@@ -9,6 +9,7 @@ UNMND, Ltd. 2021
 All Rights Reserved
 """
 
+from logging import exception
 import os
 
 import requests
@@ -20,6 +21,7 @@ CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".nv")
 # Generate the config path if it doesn't exist
 if not os.path.exists(CONFIG_PATH):
     os.makedirs(CONFIG_PATH)
+
 
 def node_exists(host, node_id=None, node_name=None, node_ip=None):
     """
@@ -38,7 +40,14 @@ def node_exists(host, node_id=None, node_name=None, node_ip=None):
         "node_ip": node_ip,
     }
 
-    r = requests.get(host + "/get_node_info", params=params)
+    r = requests.get(host + "/api/get_node_info", params=params)
 
     if r.status_code == 200:
-        return r.json() or None
+        if r.json().get("status") == "success":
+            return r.json().get("node")
+        else:
+            return None
+
+    raise Exception(
+        f"Unable to check if the node exists. Got status code: {r.status_code}"
+    )
