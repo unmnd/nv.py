@@ -90,6 +90,43 @@ class Node:
         """
         self.log.debug("Disconnected from server.")
 
+    def create_subscription(self, topic_name: str, callback_function):
+        """
+        Create a subscription to a topic.
+
+        Parameters:
+            topic_name (str): The name of the topic to subscribe to.
+            callback_function (function): The function to call when a message
+                is received on the topic.
+        """
+        self.sio.on("_topic" + topic_name, callback_function)
+
+    def publish(self, topic_name: str, message):
+        """
+        Publish a message to a topic.
+
+        Parameters:
+            topic_name (str): The name of the topic to publish to.
+            message: The message to publish.
+
+        Returns:
+            bool: True if the message was successfully published, False
+                otherwise.
+        """
+
+        def _callback(data):
+            """
+            Handles response from the server after a publish request.
+            """
+            if data["status"] != "success":
+                self.log.error("Failed to publish message: " + data["message"])
+
+        self.sio.emit(
+            "publish_on_topic",
+            data={"topic": topic_name, "message": message},
+            callback=_callback,
+        )
+
     def register_node(self):
         """
         Register the node with the server.
