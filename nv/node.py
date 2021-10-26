@@ -15,13 +15,12 @@ All Rights Reserved
 
 import json
 import os
-import threading
-import time
+import typing
 
 import requests
 import socketio
 
-from nv import logger, utils, exceptions
+from nv import exceptions, logger, utils
 
 HOSTCACHE = os.path.join(utils.CONFIG_PATH, "hostcache.json")
 
@@ -40,8 +39,10 @@ class Node:
         Initialise a new node by inheriting this class. Ensure you call
         `super().__init__(name)` in your new node.
 
-        Parameters:
-            name (str): The name of the node.
+        ---
+
+        ### Parameters:
+            - name (str): The name of the node.
         """
 
         # SocketIO client
@@ -128,27 +129,35 @@ class Node:
 
         It attempts to find the host by sending GET requests to all IPs on the
 
-        Parameters:
-            timeout (float): How long to wait for a response from the server.
-                [Default: -1 (No timeout)]
-            port (int): The port the host is listening for web requests on.
-                [Default: 5000]
-            subnet (int): The subnet mask of the host.
-                [Default: 24 (i.e. X.X.X.0 - X.X.X.255)]
+        ---
 
-        Returns:
-            The host of the nv network if found, otherwise None.
+        ### Parameters:
+            - timeout (float): How long to wait for a response from the server.
+                [Default: `-1` (No timeout)]
+            - port (int): The port the host is listening for web requests on.
+                [Default: `5000`]
+            - subnet (int): The subnet mask of the host.
+                [Default: `24` (i.e. `X.X.X.0` - `X.X.X.255`)]
+
+        ---
+
+        ### Returns:
+            The host of the nv network if found, otherwise `None`.
         """
 
         def _test_ip(ip, port):
             """
-            Check if nv_host is running on the given IP.
+            ### Check if nv_host is running on the given IP.
 
-            Parameters:
-                ip (str): The IP to test.
+            ---
 
-            Returns:
-                True, version if the host is running on the given IP, False otherwise.
+            ### Parameters:
+                - ip (str): The IP to test.
+
+            ---
+
+            ### Returns:
+                `True`, version if the host is running on the given IP, `False` otherwise.
             """
             try:
                 # Attempt to connect to the host
@@ -167,10 +176,8 @@ class Node:
                         )
                         return False
 
-                    if response_json.get("status") != "ok":
-                        self.log.error(
-                            f"Status not ok. Got: {response_json.get('status')}"
-                        )
+                    if response_json.get("status") != "success":
+                        self.log.error(response_json.get("message"))
                         return False
 
                     if response_json.get("version") != utils.VERSION:
@@ -275,28 +282,65 @@ class Node:
         )
         return _autodiscover_host()
 
+    def _check_api_response(self, r):
+        """
+        ### Check a response from the nv API for errors.
+
+        ---
+
+        ### Parameters:
+            - r (requests.Response): The response to check.
+
+        ---
+
+        ### Returns:
+            `True` if the response was successful, `False` otherwise.
+        """
+        if r.status_code == 200:
+            if r.json().get("status") == "success":
+                return True
+            else:
+                self.log.error(r.json().get("message"))
+
+        return False
+
     def create_subscription(self, topic_name: str, callback_function):
         """
-        Create a subscription to a topic.
+        ### Create a subscription to a topic.
 
-        Parameters:
-            topic_name (str): The name of the topic to subscribe to.
-            callback_function (function): The function to call when a message
+        ---
+
+        ### Parameters:
+            - topic_name (str): The name of the topic to subscribe to.
+            - callback_function (function): The function to call when a message
                 is received on the topic.
+
+        ---
+
+        ### Example::
+
+            # Create a subscription to the topic "test"
+            def callback_function(message):
+                print(message)
+
+            create_subscription("test", callback_function)
         """
         self.sio.on("_topic" + topic_name, callback_function)
 
     def publish(self, topic_name: str, message):
         """
-        Publish a message to a topic.
+        ### Publish a message to a topic.
 
-        Parameters:
+        ---
+
+        ### Parameters:
             topic_name (str): The name of the topic to publish to.
             message: The message to publish.
 
-        Returns:
-            bool: True if the message was successfully published, False
-                otherwise.
+        ---
+
+        ### Returns:
+            bool: `True` if the message was successfully published, `False` otherwise.
         """
 
         def _callback(data):
@@ -311,3 +355,172 @@ class Node:
             data={"topic": topic_name, "message": message},
             callback=_callback,
         )
+
+    def get_parameter(
+        self, parameter: str, node_name: str = None, fail_if_not_found: bool = False
+    ):
+        """
+        ### Get a parameter value from the parameter server.
+
+        ---
+
+        ### Parameters:
+            - parameter (str): The parameter name to get.
+            - node_name (str): Optionally get parameters from a different node.
+                If not specified, uses the current node.
+            - fail_if_not_found (bool): If `True`, raise an exception if the
+                parameter is not found. If `False`, return `None`.
+
+        ---
+
+        ### Returns:
+            The parameter value.
+
+        ---
+
+        ### Raises:
+            Exception: If the parameter is not found and fail_if_not_found is `True`.
+
+        ---
+
+        ### Example::
+
+            # Get the parameter 'foo' from the current node
+            foo = get_parameter('foo')
+
+            # Get the parameter 'foo' from the node 'node1'
+            foo = get_parameter('foo', node_name='node1')
+        """
+
+        # If the node name is not specified, use the current node
+        if not node_name:
+            node_name = self.name
+
+        params = {
+            "parameter_name": parameter,
+            "node_name": node_name,
+        }
+
+        # Send the request to the parameter server
+        r = requests.get(self.host + "/api/get_parameter", params=params)
+
+        # Check if the request was successful
+        if self._check_api_response(r):
+            return r.json().get("parameter_value")
+
+        # If the parameter wasn't found, None or raise an exception
+        if fail_if_not_found:
+            raise Exception(
+                f"Failed to get parameter: {parameter}. Maybe it doesn't exist?"
+            )
+        else:
+            return None
+
+    def set_parameter(self, parameter: str, value, node_name: str = None):
+        """
+        ### Set a parameter value on the parameter server.
+
+        ---
+
+        ### Parameters:
+            - parameter (str): The parameter name to set.
+            - value: The value to set the parameter to.
+            - node_name (str): Optionally set parameters on a different node.
+                If not specified, uses the current node.
+
+        ---
+
+        ### Returns:
+            `True` if all parameters were set successfully.
+
+        ---
+
+        ### Raises:
+            Exception: If the parameter server returns an error.
+
+        ---
+
+        ### Example::
+
+            # Set the parameter "foo" to "bar" on the current node
+            set_parameter("foo", "bar")
+
+            # Set the parameter "foo" to "bar" on the node "node1"
+            set_parameter("foo", "bar", "node1")
+        """
+
+        # If the node name is not specified, use the current node
+        if not node_name:
+            node_name = self.name
+
+        data = {
+            "parameter_name": parameter,
+            "parameter_value": value,
+            "node_name": node_name,
+        }
+
+        # Send the request to the parameter server
+        r = requests.post(self.host + "/api/set_parameter", data=data)
+
+        # Check if the request was successful
+        if self._check_api_response(r):
+            return True
+
+        raise Exception(f"Failed to set parameter: {parameter} to value: {value}")
+
+    def set_parameters(self, parameters: typing.List[dict]):
+        """
+        ### Set multiple parameter values on the parameter server at once.
+
+        ---
+
+        ### Parameters:
+            - parameters (list): A list of parameter dictionaries. Each dictionary should have the following keys:
+                - parameter_name (str): The parameter name to set.
+                - parameter_value: The value to set the parameter to.
+                - node_name (str): Optionally set parameters on a different node.
+                    If not specified, uses the current node.
+
+        ---
+
+        ### Returns:
+            `True` if all parameters were set successfully.
+
+        ---
+
+        ### Raises:
+            Exception: If the parameter server returns an error.
+
+        ---
+
+        ### Example::
+
+            # Set the parameters "param1" and "param2" on the current node
+            set_parameters([
+                {"parameter_name": "param1", "parameter_value": "value1"},
+                {"parameter_name": "param2", "parameter_value": "value2"},
+            ])
+
+            # Set the parameters "param1" and "param2" on the node "node1"
+            set_parameters([
+                {"parameter_name": "param1", "parameter_value": "value1", "node_name": "node1"},
+                {"parameter_name": "param2", "parameter_value": "value2", "node_name": "node1"},
+            ])
+        """
+
+        # Ensure all parameters have a specified node name, adding the current
+        # node for any without
+        for parameter in parameters:
+            if "node_name" not in parameter:
+                parameter["node_name"] = self.name
+
+        # Send the request to the parameter server
+        r = requests.post(
+            self.host + "/api/set_parameters", json={"parameters": parameters}
+        )
+
+        # Check if the request was successful
+        if self._check_api_response(r):
+            return True
+
+        raise Exception(f"Failed to set parameters: {parameters}.")
