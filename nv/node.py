@@ -21,7 +21,9 @@ import time
 import requests
 import socketio
 
-from nv import logging, version, exceptions
+from nv import logger, utils, exceptions
+
+HOSTCACHE = os.path.join(utils.CONFIG_PATH, "hostcache.json")
 
 
 class Node:
@@ -42,30 +44,78 @@ class Node:
             name (str): The name of the node.
         """
 
+        # SocketIO client
+        self.sio = socketio.Client()
+
         # Initialise parameters
-        self.NAME = name
-        self.HOST = None
+        self.name = name
+        self.host = None
+        self.node_registered = False
+
+        # Assign sio callback functions
+        self.sio.on("connect", self.on_connect)
+        self.sio.on("disconnect", self.on_disconnect)
 
         # Initialise logger
-        self.log = logging.generate_log(self.NAME, log_level=logging.DEBUG)
+        self.log = logger.generate_log(self.name, log_level=logger.DEBUG)
 
         self.log.debug(
-            f"Initialising '{self.NAME}' using framework version nv {version.VERSION}"
+            f"Initialising '{self.name}' using framework version nv {utils.VERSION}"
         )
 
         # Attempt to find the host IP address
-        self.HOST = self.discover_host(**kwargs)
+        self.host = self.discover_host(**kwargs)
+        self.log.debug(f"Found host: {self.host}")
+
+        # Check if another node with this name already exists
+        if self.node_exists(node_name=self.name):
+            raise exceptions.DuplicateNodeName(
+                "A node with the name " + self.name + " already exists on this network."
+            )
 
         # Connect socket-io client
-        self.sio = socketio.Client()
+        self.sio.connect(self.host)
 
-        # First check if a node with the same name already exists
-        # if self.name in self.get_nodes():
-        #     raise Exception("A node with the name " + self.name + " already exists")
+    def on_connect(self):
+        """
+        Callback for socket-io connect event.
+        """
+        self.log.debug("Connected to server.")
+        self.log.debug(f"Attempting to register node '{self.name}'.")
+        self.register_node()
 
-    # def __init__(self) -> None:
-    #     sio.connect("http://localhost:5000")
-    #     print("connected to socketio")
+    def on_disconnect(self):
+        """
+        Callback for socket-io disconnect event.
+        """
+        self.log.debug("Disconnected from server.")
+
+    def register_node(self):
+        """
+        Register the node with the server.
+        """
+
+        def _callback(data):
+            """
+            Handles response from the server after a registration request.
+            """
+            if data["status"] == "success":
+                self.node_registered = True
+                self.log.info("Node successfully registered with server.")
+            else:
+                self.log.error(
+                    "Failed to register node with server: " + data["message"]
+                )
+
+        self.sio.emit(
+            "register_node",
+            {
+                "magic": utils.MAGIC,
+                "version": utils.VERSION,
+                "node_name": self.name,
+            },
+            callback=_callback,
+        )
 
     def discover_host(self, timeout: float = -1, port: int = 5000, subnet: int = 24):
         """
@@ -103,7 +153,7 @@ class Node:
             try:
                 # Attempt to connect to the host
                 response = requests.get(
-                    "http://" + ip + ":" + str(port),
+                    "http://" + ip + ":" + str(port) + "/ping",
                 )
                 if response.status_code == 200:
 
@@ -111,9 +161,9 @@ class Node:
                     # network, and is running the correct version.
                     response_json = response.json()
 
-                    if response_json.get("magic") != version.MAGIC:
+                    if response_json.get("magic") != utils.MAGIC:
                         self.log.error(
-                            f"Magic number mismatch. Got: {response_json.get('magic')}, expected: {version.MAGIC}"
+                            f"Magic number mismatch. Got: {response_json.get('magic')}, expected: {utils.MAGIC}"
                         )
                         return False
 
@@ -123,9 +173,9 @@ class Node:
                         )
                         return False
 
-                    if response_json.get("version") != version.VERSION:
+                    if response_json.get("version") != utils.VERSION:
                         self.log.error(
-                            f"Version mismatch. Got: {response_json.get('version')}, expected: {version.VERSION}"
+                            f"Version mismatch. Got: {response_json.get('version')}, expected: {utils.VERSION}"
                         )
                         return False
 
@@ -191,31 +241,31 @@ class Node:
             host_ip, host_port = host.rsplit(":", 1)
 
             # Check if the host is running the correct version
-            if _test_ip(host=host_ip, port=host_port):
+            if _test_ip(ip=host_ip, port=host_port):
 
                 # Save the host to the cache
-                hostcache = {"ip": "nv_host", "port": port}
-                json.dump(hostcache, open(".hostcache.json", "w"))
+                hostcache = {"ip": host_ip, "port": host_port}
+                json.dump(hostcache, open(HOSTCACHE, "w"))
 
                 return f"http://{host_ip}:{host_port}"
             else:
                 raise Exception(
-                    f"The host at {host} is invalid, make sure it is accessible and running the correct framework version ({version.VERSION})"
+                    f"The host at {host} is invalid, make sure it is accessible and running the correct framework version ({utils.VERSION})"
                 )
 
         # First try to find the host in the cache
-        if os.path.exists(".hostcache.json"):
-            hostcache = json.load(open(".hostcache.json", "r"))
+        if os.path.exists(HOSTCACHE):
+            hostcache = json.load(open(HOSTCACHE, "r"))
 
             if _test_ip(ip=hostcache["ip"], port=hostcache["port"]):
-                return host
+                return f"http://{hostcache['ip']}:{hostcache['port']}"
 
         # If the host wasn't found, try a named host (if running in Docker bridge)
         if _test_ip("nv_host", port):
 
             # Save the host to the cache
             hostcache = {"ip": "nv_host", "port": port}
-            json.dump(hostcache, open(".hostcache.json", "w"))
+            json.dump(hostcache, open(HOSTCACHE, "w"))
 
             return f"http://nv_host:{port}"
 
@@ -225,48 +275,58 @@ class Node:
         )
         return _autodiscover_host()
 
-    @classmethod
-    def get_nodes(self):
+    def node_exists(self, node_id=None, node_name=None, node_ip=None):
         """
-        Get a list of the names of all nodes. A socketio request is made to the
-        server to get the list of nodes.
+        Check if a node exists in the network. If the node exists, information
+        about the node is returned, otherwise None.
         """
-        r = requests.get(self.HOST + "/get_nodes")
+
+        # Ensure only one node identifier is provided
+        assert (
+            bool(node_id) ^ bool(node_name) ^ bool(node_ip)
+        ), "You must specify exactly one of `node_id`, `node_name`, or `node_ip`."
+
+        params = {
+            "node_id": node_id,
+            "node_name": node_name,
+            "node_ip": node_ip,
+        }
+
+        r = requests.get(self.host + "/get_node_info", params=params)
 
         if r.status_code == 200:
-            if r.json()["status"] == "ok":
-                return r.json()["nodes"]
+            return r.json() or None
 
-    def subscribe(self, topic: str, callback) -> None:
-        """
-        Creates a subscription to a topic using socketio.
-        """
-        self.sio.on("_topic" + topic, callback)
+    # def subscribe(self, topic: str, callback) -> None:
+    #     """
+    #     Creates a subscription to a topic using socketio.
+    #     """
+    #     self.sio.on("_topic" + topic, callback)
 
-    def publish(self, topic: str, data) -> None:
-        """
-        Publishes a message to a topic using socketio.
-        """
-        print("publishing to topic: " + topic)
-        self.sio.emit("new_message", {"topic": topic, "data": data})
+    # def publish(self, topic: str, data) -> None:
+    #     """
+    #     Publishes a message to a topic using socketio.
+    #     """
+    #     print("publishing to topic: " + topic)
+    #     self.sio.emit("new_message", {"topic": topic, "data": data})
 
-    def create_timer(self, interval, callback, **kwargs):
-        """
-        Create a timer which calls the callback function every `time` seconds
-        """
-        timer = threading.Thread(
-            target=self._timer_thread, args=(interval, callback), kwargs=kwargs
-        )
-        timer.start()
-        return timer
+    # def create_timer(self, interval, callback, **kwargs):
+    #     """
+    #     Create a timer which calls the callback function every `time` seconds
+    #     """
+    #     timer = threading.Thread(
+    #         target=self._timer_thread, args=(interval, callback), kwargs=kwargs
+    #     )
+    #     timer.start()
+    #     return timer
 
-    def _timer_thread(self, interval, callback, **kwargs):
-        while True:
-            callback(**kwargs)
-            time.sleep(interval)
+    # def _timer_thread(self, interval, callback, **kwargs):
+    #     while True:
+    #         callback(**kwargs)
+    #         time.sleep(interval)
 
-    def destroy_timer(self, timer):
-        """
-        Destroy a timer
-        """
-        timer.cancel()
+    # def destroy_timer(self, timer):
+    #     """
+    #     Destroy a timer
+    #     """
+    #     timer.cancel()
