@@ -53,8 +53,8 @@ class Node:
         self.node_registered = False
 
         # Assign sio callback functions
-        self.sio.on("connect", self.on_connect)
-        self.sio.on("disconnect", self.on_disconnect)
+        self.sio.on("connect", self._on_connect)
+        self.sio.on("disconnect", self._on_disconnect)
 
         # Initialise logger
         self.log = logger.generate_log(self.name, log_level=logger.DEBUG)
@@ -64,7 +64,7 @@ class Node:
         )
 
         # Attempt to find the host IP address
-        self.host = self.discover_host(**kwargs)
+        self.host = self._discover_host(**kwargs)
         self.log.debug(f"Found host: {self.host}")
 
         # Check if another node with this name already exists
@@ -76,58 +76,21 @@ class Node:
         # Connect socket-io client
         self.sio.connect(self.host)
 
-    def on_connect(self):
+    def _on_connect(self):
         """
         Callback for socket-io connect event.
         """
         self.log.debug("Connected to server.")
         self.log.debug(f"Attempting to register node '{self.name}'.")
-        self.register_node()
+        self._register_node()
 
-    def on_disconnect(self):
+    def _on_disconnect(self):
         """
         Callback for socket-io disconnect event.
         """
         self.log.debug("Disconnected from server.")
 
-    def create_subscription(self, topic_name: str, callback_function):
-        """
-        Create a subscription to a topic.
-
-        Parameters:
-            topic_name (str): The name of the topic to subscribe to.
-            callback_function (function): The function to call when a message
-                is received on the topic.
-        """
-        self.sio.on("_topic" + topic_name, callback_function)
-
-    def publish(self, topic_name: str, message):
-        """
-        Publish a message to a topic.
-
-        Parameters:
-            topic_name (str): The name of the topic to publish to.
-            message: The message to publish.
-
-        Returns:
-            bool: True if the message was successfully published, False
-                otherwise.
-        """
-
-        def _callback(data):
-            """
-            Handles response from the server after a publish request.
-            """
-            if data["status"] != "success":
-                self.log.error("Failed to publish message: " + data["message"])
-
-        self.sio.emit(
-            "publish_on_topic",
-            data={"topic": topic_name, "message": message},
-            callback=_callback,
-        )
-
-    def register_node(self):
+    def _register_node(self):
         """
         Register the node with the server.
         """
@@ -154,7 +117,7 @@ class Node:
             callback=_callback,
         )
 
-    def discover_host(self, timeout: float = -1, port: int = 5000, subnet: int = 24):
+    def _discover_host(self, timeout: float = -1, port: int = 5000, subnet: int = 24):
         """
         Attempt to automatically find the host of the nv network, by trying
         common IPs. The host must be on the same subnet as the node, unless
@@ -311,3 +274,40 @@ class Node:
             "Scanning LAN for host is not yet implemented, please manually specify a host instead"
         )
         return _autodiscover_host()
+
+    def create_subscription(self, topic_name: str, callback_function):
+        """
+        Create a subscription to a topic.
+
+        Parameters:
+            topic_name (str): The name of the topic to subscribe to.
+            callback_function (function): The function to call when a message
+                is received on the topic.
+        """
+        self.sio.on("_topic" + topic_name, callback_function)
+
+    def publish(self, topic_name: str, message):
+        """
+        Publish a message to a topic.
+
+        Parameters:
+            topic_name (str): The name of the topic to publish to.
+            message: The message to publish.
+
+        Returns:
+            bool: True if the message was successfully published, False
+                otherwise.
+        """
+
+        def _callback(data):
+            """
+            Handles response from the server after a publish request.
+            """
+            if data["status"] != "success":
+                self.log.error("Failed to publish message: " + data["message"])
+
+        self.sio.emit(
+            "publish_on_topic",
+            data={"topic": topic_name, "message": message},
+            callback=_callback,
+        )
