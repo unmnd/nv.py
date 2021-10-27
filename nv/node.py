@@ -21,7 +21,7 @@ import requests
 import socketio
 import yaml
 
-from nv import exceptions, logger, utils
+from nv import exceptions, logger, utils, udp_server
 
 HOSTCACHE = os.path.join(utils.CONFIG_PATH, "hostcache.json")
 
@@ -43,7 +43,7 @@ class Node:
         ---
 
         ### Parameters:
-            - name (str): The name of the node.
+            - `name` (str): The name of the node.
         """
 
         # SocketIO client
@@ -133,11 +133,11 @@ class Node:
         ---
 
         ### Parameters:
-            - timeout (float): How long to wait for a response from the server.
+            - `timeout` (float): How long to wait for a response from the server.
                 [Default: `-1` (No timeout)]
-            - port (int): The port the host is listening for web requests on.
+            - `port` (int): The port the host is listening for web requests on.
                 [Default: `5000`]
-            - subnet (int): The subnet mask of the host.
+            - `subnet` (int): The subnet mask of the host.
                 [Default: `24` (i.e. `X.X.X.0` - `X.X.X.255`)]
 
         ---
@@ -153,7 +153,7 @@ class Node:
             ---
 
             ### Parameters:
-                - ip (str): The IP to test.
+                - `ip` (str): The IP to test.
 
             ---
 
@@ -290,7 +290,7 @@ class Node:
         ---
 
         ### Parameters:
-            - r (requests.Response): The response to check.
+            - `r` (requests.Response): The response to check.
 
         ---
 
@@ -313,9 +313,9 @@ class Node:
         ---
 
         ### Parameters:
-            - name (str): The name of the logger.
+            - `name` (str): The name of the logger.
                 [Default: <node name>]
-            - log_level (int): The log level.
+            - `log_level` (int): The log level.
                 [Default: `logger.INFO`]
 
         ---
@@ -332,8 +332,8 @@ class Node:
         ---
 
         ### Parameters:
-            - topic_name (str): The name of the topic to subscribe to.
-            - callback_function (function): The function to call when a message
+            - `topic_name` (str): The name of the topic to subscribe to.
+            - `callback_function` (function): The function to call when a message
                 is received on the topic.
 
         ---
@@ -355,8 +355,8 @@ class Node:
         ---
 
         ### Parameters:
-            topic_name (str): The name of the topic to publish to.
-            message: The message to publish.
+            `topic_name` (str): The name of the topic to publish to.
+            `message`: The message to publish.
 
         ---
 
@@ -386,10 +386,10 @@ class Node:
         ---
 
         ### Parameters:
-            - parameter (str): The parameter name to get.
-            - node_name (str): Optionally get parameters from a different node.
+            - `parameter` (str): The parameter name to get.
+            - `node_name` (str): Optionally get parameters from a different node.
                 If not specified, uses the current node.
-            - fail_if_not_found (bool): If `True`, raise an exception if the
+            - `fail_if_not_found` (bool): If `True`, raise an exception if the
                 parameter is not found. If `False`, return `None`.
 
         ---
@@ -446,11 +446,11 @@ class Node:
         ---
 
         ### Parameters:
-            - name (str): The parameter name to set.
-            - value: The value to set the parameter to.
-            - node_name (str): Optionally set parameters on a different node.
+            - `name` (str): The parameter name to set.
+            - `value`: The value to set the parameter to.
+            - `node_name` (str): Optionally set parameters on a different node.
                 If not specified, uses the current node.
-            - description (str): An optional description of the parameter.
+            - `description` (str): An optional description of the parameter.
 
         ---
 
@@ -505,12 +505,12 @@ class Node:
         ---
 
         ### Parameters:
-            - parameters (list): A list of parameter dictionaries. Each dictionary should have the following keys:
-                - name (str): The parameter name to set.
-                - value: The value to set the parameter to.
-                - node_name (str): Optionally set parameters on a different node.
+            - `parameters` (list): A list of parameter dictionaries. Each dictionary should have the following keys:
+                - `name` (str): The parameter name to set.
+                - `value`: The value to set the parameter to.
+                - `node_name` (str): Optionally set parameters on a different node.
                     If not specified, uses the current node.
-                - description (str): An optional description of the parameter.
+                - `description` (str): An optional description of the parameter.
 
         ---
 
@@ -566,7 +566,7 @@ class Node:
         ---
 
         ### Parameters:
-            - filepath (str): The path to the file containing the parameters.
+            - `filepath` (str): The path to the file containing the parameters.
                 The file should be a JSON or YAML file following one of the
                 example styles below.
 
@@ -631,7 +631,7 @@ class Node:
             ---
 
             ### Parameters:
-                - parameter_dict (dict): A dictionary containing the parameters to convert.
+                - `parameter_dict` (dict): A dictionary containing the parameters to convert.
 
             ---
 
@@ -688,3 +688,66 @@ class Node:
         if self.set_parameters(parameters):
             self.log.info("Parameters set successfully.")
             return True
+
+    def create_udp_server(
+        self,
+        port: int,
+        host: str = "localhost",
+        callback: typing.Callable = print,
+        buffer_size: int = 128 * 1024,
+    ):
+        """
+        ### Create a UDP server to listen for UDP dataframes.
+        This allows much faster client-client communication, as opposed to the
+        standard socket-io client-server-client method (approx 10x improvement).
+        All data transferred must be in bytes.
+
+        ---
+
+        ### Parameters:
+            - `port` (int): The port to listen on.
+            - `host` (str): The host to listen on. Defaults to "localhost".
+            - `callback` (function): A function to call when a dataframe is received.
+                The function should take a single argument, which is the dataframe.
+            - `buffer_size` (int): The size of the buffer to use for receiving data.
+
+        ---
+
+        ### Returns:
+            `udp_server` if the server was created successfully.
+                Methods:
+                    - `udp_server.start()`: Starts the server
+                    - `udp_server.stop()`: Stops the server
+                    - `udp_server.wait_until_ready()`: Waits until the server is ready to receive data.
+        """
+
+        return udp_server.UDP_Server(
+            port=port, host=host, callback=callback, buffer_size=buffer_size
+        )
+
+    def create_udp_client(
+        self,
+        port: int,
+        host: str = "localhost",
+    ):
+        """
+        ### Create a UDP client to send UDP dataframes.
+        This allows much faster client-client communication, as opposed to the
+        standard socket-io client-server-client method. All data transferred
+        must be in bytes.
+
+        ---
+
+        ### Parameters:
+            - `port` (int): The port to send data to.
+            - `host` (str): The host to send data to. Defaults to "localhost".
+
+        ---
+
+        ### Returns:
+            `udp_client` if the client was created successfully.
+                Methods:
+                    - `udp_client.send(dataframe)`: Sends a dataframe to the server
+        """
+
+        return udp_server.UDP_Client(port=port, host=host)
