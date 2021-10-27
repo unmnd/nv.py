@@ -21,7 +21,7 @@ import requests
 import socketio
 import yaml
 
-from nv import exceptions, logger, utils, udp_server
+from nv import exceptions, logger, services, udp_server, utils
 
 HOSTCACHE = os.path.join(utils.CONFIG_PATH, "hostcache.json")
 
@@ -325,6 +325,17 @@ class Node:
         """
         return logger.generate_log(name or self.name, log_level)
 
+    def get_name(self) -> str:
+        """
+        ### Get the name of the node.
+
+        ---
+
+        ### Returns:
+            The name of the node.
+        """
+        return self.name
+
     def create_subscription(self, topic_name: str, callback_function):
         """
         ### Create a subscription to a topic.
@@ -376,6 +387,70 @@ class Node:
             data={"topic": topic_name, "message": message},
             callback=_callback,
         )
+
+    def create_service(self, service_name: str, callback_function):
+        """
+        ### Create a service.
+
+        ---
+
+        ### Parameters:
+            - `service_name` (str): The name of the service to create.
+            - `callback_function` (function): The function to call when a message
+                is received on the service.
+
+        ---
+
+        ### Example::
+
+            # Create a service called "test"
+            def callback_function(message):
+                print(message)
+
+            create_service("test", callback_function)
+        """
+        server = services.ServiceServer(
+            name=service_name, callback=callback_function, sio=self.sio
+        )
+
+        server.create_service()
+
+    def call_service(self, service_name: str, *args, **kwargs):
+        """
+        ### Call a service.
+
+        ---
+
+        ### Parameters:
+            - `service_name` (str): The name of the service to call.
+            - `*args`: Arguments to pass to the service.
+            - `**kwargs`: Keyword arguments to pass to the service.
+
+        ---
+
+        ### Returns:
+            A client which can be used to wait for the response.
+
+            Methods:
+                - `client.wait()`: Wait for the response.
+                - `client.get_response()`: Get the response.
+        ---
+
+        ### Example::
+
+            # Call the service "test"
+            future = call_service("test", "Hello", "World")
+
+            # Wait for the response
+            future.wait()
+
+            # Get the response
+            response = future.get_response()
+        """
+
+        client = services.ServiceClient(name=service_name, sio=self.sio)
+        client.call_service(*args, **kwargs)
+        return client
 
     def get_parameter(
         self, parameter: str, node_name: str = None, fail_if_not_found: bool = False
