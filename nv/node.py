@@ -305,6 +305,26 @@ class Node:
 
         return False
 
+    def get_logger(self, name=None, log_level=logger.INFO):
+        """
+        ### Get a logger for the nv framework.
+        Note, the logger for the current node is always available as `self.log`.
+
+        ---
+
+        ### Parameters:
+            - name (str): The name of the logger.
+                [Default: <node name>]
+            - log_level (int): The log level.
+                [Default: `logger.INFO`]
+
+        ---
+
+        ### Returns:
+            A logger for the nv framework.
+        """
+        return logger.generate_log(name or self.name, log_level)
+
     def create_subscription(self, topic_name: str, callback_function):
         """
         ### Create a subscription to a topic.
