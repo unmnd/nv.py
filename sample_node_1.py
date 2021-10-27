@@ -22,6 +22,9 @@ class SampleNode1(nv.Node):
         print(self.get_parameter("test_parameter_1"))
         print(self.get_parameter("test_parameter_2"))
 
+        self.set_parameters_from_file("config.yml")
+        self.set_parameters_from_file("config.json")
+
     def test_callback(self, msg):
         self.log.warning("test_callback: {}".format(msg))
 

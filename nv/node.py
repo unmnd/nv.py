@@ -19,6 +19,7 @@ import typing
 
 import requests
 import socketio
+import yaml
 
 from nv import exceptions, logger, utils
 
@@ -524,3 +525,133 @@ class Node:
             return True
 
         raise Exception(f"Failed to set parameters: {parameters}.")
+
+    def set_parameters_from_file(self, filepath):
+        """
+        ### Set multiple parameter values on the parameter server from a file.
+
+        ---
+
+        ### Parameters:
+            - filepath (str): The path to the file containing the parameters.
+                The file should be a JSON or YAML file following one of the
+                example styles below.
+
+        ---
+
+        ### Returns:
+            `True` if all parameters were set successfully.
+
+        ---
+
+        ### Raises:
+            Exception: If the parameter server returns an error.
+
+        ---
+
+        ### Example::
+
+            # Set the parameters from the file "parameters.json"
+            set_parameters_from_file("parameters.json")
+
+        ### config.yml::
+
+            node1:
+                param1: value1
+                param2: value2
+
+                subparam:
+                    subparam1: value1
+                    subparam2: value2
+
+            node2:
+                param3: value3
+                param4: value4
+
+        ### config.json::
+
+            {
+                "node1": {
+                    "param1": "value1",
+                    "param2": "value2",
+                    "subparam": {
+                        "subparam1": "value1",
+                        "subparam2": "value2"
+                    }
+                },
+                "node2": {
+                    "param3": "value3",
+                    "param4": "value4"
+                }
+            }
+        """
+
+        def convert_to_parameter_dict(parameter_dict, _node_name=None, _subparams=[]):
+            """
+            Convert a parameter dictionary read from a file, to a list of
+            parameters suitable for sending to the parameter server.
+
+            Supports subparameters, by recursively setting the parameter name as:
+                `subparam.param = value1`
+                `subparam1.subparam2.param = value2`
+
+            ---
+
+            ### Parameters:
+                - parameter_dict (dict): A dictionary containing the parameters to convert.
+
+            ---
+
+            ### Returns:
+                A list of parameter dictionaries.
+            """
+
+            parameter_list = []
+
+            for key, value in parameter_dict.items():
+
+                # If this is the first level of the parameter, set the node name
+                if _node_name is None:
+                    # Recurse all parameters
+                    parameter_list.extend(
+                        convert_to_parameter_dict(value, _node_name=key)
+                    )
+
+                elif isinstance(value, dict):
+                    # Recurse into subparameters
+                    parameter_list.extend(
+                        convert_to_parameter_dict(
+                            value,
+                            _subparams=[*_subparams, key],
+                            _node_name=_node_name,
+                        )
+                    )
+                else:
+                    # Set the parameter
+                    parameter_list.append(
+                        {
+                            "node_name": _node_name,
+                            "name": f"{'.'.join([*_subparams, ''])}{key}",
+                            "value": value,
+                        }
+                    )
+
+            return parameter_list
+
+        self.log.info(f"Setting parameters from file: {filepath}")
+
+        # Read the file
+        with open(filepath, "r") as f:
+
+            # Determine the type of file
+            if filepath.endswith(".json"):
+                parameters_dict = json.load(f)
+
+            elif filepath.endswith(".yml") or filepath.endswith(".yaml"):
+                parameters_dict = yaml.safe_load(f)
+
+        parameters = convert_to_parameter_dict(parameters_dict)
+
+        if self.set_parameters(parameters):
+            self.log.info("Parameters set successfully.")
+            return True
