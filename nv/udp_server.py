@@ -23,8 +23,8 @@ class UDP_Server:
         """
         ### Initialise the UDP server.
         """
-        self.active = False
-        self.ready = False
+        self._active = False
+        self._ready = threading.Event()
         self.host = host
         self.port = port
         self.callback = callback
@@ -50,8 +50,8 @@ class UDP_Server:
 
         sock.bind((self.host, self.port))
 
-        self.ready = True
-        while self.active:
+        self._ready.set()
+        while self._active:
             data, addr = sock.recvfrom(self.buffer_size)
             self.callback(data)
 
@@ -59,7 +59,7 @@ class UDP_Server:
         """
         ### Start the UDP server.
         """
-        self.active = True
+        self._active = True
         thread = threading.Thread(target=self._run_udp_server)
         thread.start()
 
@@ -67,15 +67,14 @@ class UDP_Server:
         """
         ### Stop the UDP server.
         """
-        self.active = False
-        self.ready = False
+        self._active = False
+        self._ready.clear()
 
     def wait_until_ready(self):
         """
         ### Wait until the server is ready.
         """
-        while not self.ready:
-            pass
+        self._ready.wait()
 
 
 class UDP_Client:
