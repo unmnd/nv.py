@@ -90,7 +90,7 @@ class Node:
         """
         Callback for socket-io disconnect event.
         """
-        self.log.debug("Disconnected from server.")
+        self.log.warning("Disconnected from server.")
 
     def _register_node(self):
         """
@@ -418,7 +418,7 @@ class Node:
             node_name = self.name
 
         params = {
-            "parameter_name": parameter,
+            "name": parameter,
             "node_name": node_name,
         }
 
@@ -437,17 +437,20 @@ class Node:
         else:
             return None
 
-    def set_parameter(self, parameter: str, value, node_name: str = None):
+    def set_parameter(
+        self, name: str, value, node_name: str = None, description: str = None
+    ):
         """
         ### Set a parameter value on the parameter server.
 
         ---
 
         ### Parameters:
-            - parameter (str): The parameter name to set.
+            - name (str): The parameter name to set.
             - value: The value to set the parameter to.
             - node_name (str): Optionally set parameters on a different node.
                 If not specified, uses the current node.
+            - description (str): An optional description of the parameter.
 
         ---
 
@@ -467,7 +470,12 @@ class Node:
             set_parameter("foo", "bar")
 
             # Set the parameter "foo" to "bar" on the node "node1"
-            set_parameter("foo", "bar", "node1")
+            set_parameter(
+                name="foo",
+                value="bar",
+                node_name="node1",
+                description="This is a test parameter"
+            )
         """
 
         # If the node name is not specified, use the current node
@@ -475,9 +483,10 @@ class Node:
             node_name = self.name
 
         data = {
-            "parameter_name": parameter,
-            "parameter_value": value,
             "node_name": node_name,
+            "name": name,
+            "value": value,
+            "description": description,
         }
 
         # Send the request to the parameter server
@@ -487,7 +496,7 @@ class Node:
         if self._check_api_response(r):
             return True
 
-        raise Exception(f"Failed to set parameter: {parameter} to value: {value}")
+        raise Exception(f"Failed to set parameter: {name} to value: {value}")
 
     def set_parameters(self, parameters: typing.List[dict]):
         """
@@ -497,10 +506,11 @@ class Node:
 
         ### Parameters:
             - parameters (list): A list of parameter dictionaries. Each dictionary should have the following keys:
-                - parameter_name (str): The parameter name to set.
-                - parameter_value: The value to set the parameter to.
+                - name (str): The parameter name to set.
+                - value: The value to set the parameter to.
                 - node_name (str): Optionally set parameters on a different node.
                     If not specified, uses the current node.
+                - description (str): An optional description of the parameter.
 
         ---
 
@@ -518,14 +528,14 @@ class Node:
 
             # Set the parameters "param1" and "param2" on the current node
             set_parameters([
-                {"parameter_name": "param1", "parameter_value": "value1"},
-                {"parameter_name": "param2", "parameter_value": "value2"},
+                {"name": "param1", "value": "value1"},
+                {"name": "param2", "value": "value2", "description": "This is a test parameter"}},
             ])
 
             # Set the parameters "param1" and "param2" on the node "node1"
             set_parameters([
-                {"parameter_name": "param1", "parameter_value": "value1", "node_name": "node1"},
-                {"parameter_name": "param2", "parameter_value": "value2", "node_name": "node1"},
+                {"name": "param1", "value": "value1", "node_name": "node1"},
+                {"name": "param2", "value": "value2", "node_name": "node1"},
             ])
         """
 
@@ -534,6 +544,9 @@ class Node:
         for parameter in parameters:
             if "node_name" not in parameter:
                 parameter["node_name"] = self.name
+
+            if "description" not in parameter:
+                parameter["description"] = None
 
         # Send the request to the parameter server
         r = requests.post(
