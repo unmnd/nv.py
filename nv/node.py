@@ -702,6 +702,10 @@ class Node:
         standard socket-io client-server-client method (approx 10x improvement).
         All data transferred must be in bytes.
 
+        #### Important note:
+        Any message sent must be smaller than the buffer size.
+        Any message larger than the buffer size will be truncated.
+
         ---
 
         ### Parameters:
