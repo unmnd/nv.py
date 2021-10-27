@@ -30,6 +30,9 @@ class UDP_Server:
         self.callback = callback
         self.buffer_size = buffer_size
 
+        if buffer_size > 65536:
+            raise BytesWarning("Buffer size is larger than the maximum packet size allowed for UDP. Please use no more than 2^16 bytes")
+
     def _run_udp_server(self):
         """
         ### Bind a UDP server to the specified host and port.

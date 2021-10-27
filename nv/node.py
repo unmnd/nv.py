@@ -694,7 +694,7 @@ class Node:
         port: int,
         host: str = "localhost",
         callback: typing.Callable = print,
-        buffer_size: int = 128 * 1024,
+        buffer_size: int = 1024,
     ):
         """
         ### Create a UDP server to listen for UDP dataframes.
@@ -702,9 +702,14 @@ class Node:
         standard socket-io client-server-client method (approx 10x improvement).
         All data transferred must be in bytes.
 
-        #### Important note:
-        Any message sent must be smaller than the buffer size.
-        Any message larger than the buffer size will be truncated.
+        #### Important notes:
+        - Any message sent must be smaller than the buffer size.
+        - Any message larger than the buffer size will be truncated.
+        - There is no special handling of message size, sending large messages
+            must be handled by the user.
+        - There is no guarantee that the message will be received by the
+            destination. Any error correction must be handled by the user.
+
 
         ---
 
