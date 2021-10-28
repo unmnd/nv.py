@@ -16,10 +16,11 @@ All Rights Reserved
 
 import socket
 import threading
+import warnings
 
 
 class UDP_Server:
-    def __init__(self, port, host, callback, buffer_size):
+    def __init__(self, callback, port=0, host="localhost", buffer_size=1024):
         """
         ### Initialise the UDP server.
         """
@@ -30,33 +31,51 @@ class UDP_Server:
         self.callback = callback
         self.buffer_size = buffer_size
 
-        if buffer_size > 65536:
-            raise BytesWarning("Buffer size is larger than the maximum packet size allowed for UDP. Please use no more than 2^16 bytes")
+        if buffer_size > 1024:
+            warnings.warn(
+                "Buffer size is greater than 1024 bytes. This is not recommended.",
+                BytesWarning,
+            )
+
+        if buffer_size > 65507:
+            raise BufferError(
+                "Buffer size is larger than the maximum packet size allowed for UDP. Please use no more than 65507 bytes"
+            )
+
+        # Binding will allow the host and port to be fetched before the server
+        # is started.
+        self._bind()
 
     def _run_udp_server(self):
         """
         ### Bind a UDP server to the specified host and port.
         Active while self.active is True.
-
-        ---
-
-        ### Parameters:
-            - host (str): The host to bind to.
-            - port (int): The port to bind to.
-
-        ### Returns:
-            (socket.socket): The bound socket.
         """
-
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1024)
-
-        sock.bind((self.host, self.port))
-
         self._ready.set()
+
         while self._active:
-            data, addr = sock.recvfrom(self.buffer_size)
+            data, addr = self.sock.recvfrom(self.buffer_size)
             self.callback(data)
+
+    def _bind(self):
+        """
+        ### Bind the UDP server to the specified host and port.
+        """
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1024)
+        self.sock.bind((self.host, self.port))
+
+    def get_host(self):
+        """
+        ### Get the host of the UDP server.
+        """
+        return self.sock.getsockname()[0]
+
+    def get_port(self):
+        """
+        ### Get the port of the UDP server.
+        """
+        return self.sock.getsockname()[1]
 
     def start(self):
         """
@@ -88,10 +107,10 @@ class UDP_Client:
         self.active = False
         self.host = host
         self.port = port
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
     def send(self, data: bytes):
         """
         ### Send data to the UDP server.
         """
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        sock.sendto(data, (self.host, self.port))
+        self.sock.sendto(data, (self.host, self.port))

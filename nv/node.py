@@ -409,7 +409,45 @@ class Node:
 
             create_service("test", callback_function)
         """
+
+        # Initialise the server
         server = services.ServiceServer(
+            name=service_name, callback=callback_function, sio=self.sio
+        )
+
+        server.create_service()
+
+    def create_udp_service(self, service_name: str, callback_function):
+        """
+        ### Create a service.
+
+        ---
+
+        ### Parameters:
+            - `service_name` (str): The name of the service to create.
+            - `callback_function` (function): The function to call when a message
+                is received on the service.
+
+        ---
+
+        ### Example::
+
+            # Create a service called "test"
+            def callback_function(message):
+                print(message)
+
+            create_service("test", callback_function)
+        """
+
+        raise NotImplementedError(
+            "UDP services are unreliable with large data (> 100,000 bytes), \
+            as there is no error checking or correction. The standard socketio \
+            backend is fast enough for this data anyway. Instead, TCP servers \
+            should be implemented."
+        )
+
+        # Initialise the server
+        server = services.UDPServiceServer(
             name=service_name, callback=callback_function, sio=self.sio
         )
 
@@ -448,7 +486,59 @@ class Node:
             response = future.get_response()
         """
 
+        # Initialise the server
         client = services.ServiceClient(name=service_name, sio=self.sio)
+
+        client.call_service(*args, **kwargs)
+        return client
+
+    def call_udp_service(self, service_name: str, *args, **kwargs):
+        """
+        ### Call a UDP service.
+        UDP services are used for particularly fast data transfer from the
+        service server back to the client. It should only be used if required,
+        as it provides no error correction for lost packets.
+
+        ---
+
+        ### Parameters:
+            - `service_name` (str): The name of the service to call.
+            - `*args`: Arguments to pass to the service.
+            - `**kwargs`: Keyword arguments to pass to the service.
+
+        ---
+
+        ### Returns:
+            A client which can be used to wait for the response.
+
+            Methods:
+                - `client.wait()`: Wait for the response.
+                - `client.get_response()`: Get the response.
+
+        ---
+
+        ### Example::
+
+            # Call the service "test"
+            future = call_udp_service("test", "Hello", "World")
+
+            # Wait for the response
+            future.wait()
+
+            # Get the response
+            response = future.get_response()
+        """
+
+        raise NotImplementedError(
+            "UDP services are unreliable with large data (> 100,000 bytes), \
+            as there is no error checking or correction. The standard socketio \
+            backend is fast enough for this data anyway. Instead, TCP servers \
+            should be implemented."
+        )
+
+        # Initialise the server
+        client = services.UDPServiceClient(name=service_name, sio=self.sio)
+
         client.call_service(*args, **kwargs)
         return client
 
@@ -766,9 +856,9 @@ class Node:
 
     def create_udp_server(
         self,
-        port: int,
+        callback: typing.Callable,
+        port: int = 0,
         host: str = "localhost",
-        callback: typing.Callable = print,
         buffer_size: int = 1024,
     ):
         """
@@ -789,10 +879,11 @@ class Node:
         ---
 
         ### Parameters:
-            - `port` (int): The port to listen on.
-            - `host` (str): The host to listen on. Defaults to "localhost".
             - `callback` (function): A function to call when a dataframe is received.
                 The function should take a single argument, which is the dataframe.
+            - `port` (int): The port to listen on. If 0, a random port will be
+                chosen.
+            - `host` (str): The host to listen on. Defaults to "localhost".
             - `buffer_size` (int): The size of the buffer to use for receiving data.
 
         ---
@@ -803,6 +894,8 @@ class Node:
                     - `udp_server.start()`: Starts the server
                     - `udp_server.stop()`: Stops the server
                     - `udp_server.wait_until_ready()`: Waits until the server is ready to receive data.
+                    - `udp_server.get_host()`: Returns the host the server is listening on.
+                    - `udp_server.get_port()`: Returns the port the server is listening on.
         """
 
         return udp_server.UDP_Server(
