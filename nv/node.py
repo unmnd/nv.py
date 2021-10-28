@@ -388,6 +388,12 @@ class Node:
             callback=_callback,
         )
 
+    def destroy_node(self):
+        """
+        ### Destroy the node.
+        """
+        raise NotImplementedError("Destroy node is not yet implemented")
+
     def create_service(self, service_name: str, callback_function):
         """
         ### Create a service.
