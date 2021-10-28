@@ -1,9 +1,9 @@
-bidict==0.21.4
-certifi==2021.10.8
-charset-normalizer==2.0.7
-idna==3.3
-python-engineio==4.2.1
-python-socketio[client]==5.4.1
-requests==2.26.0
-urllib3==1.26.7
-pyyaml==6.0
+#
+# Installs dependencies from ./setup.py, and the package itself, in editable
+# mode. This means the files are symlinked into the installation path, allowing
+# changes in the repo without having to re-install the package.
+-e .
+
+# (the -e above is optional). you could also just install the package
+# normally with just the line below (after uncommenting)
+# .

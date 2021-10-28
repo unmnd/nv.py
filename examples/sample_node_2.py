@@ -1,7 +1,7 @@
-import nv
+from nv.node import Node
 
 
-class SampleNode2(nv.Node):
+class SampleNode2(Node):
     def __init__(self):
         super().__init__(name="test_node_2")
         # self.create_timer(interval=1, callback=publish_on_timer, node=self)
