@@ -2,13 +2,13 @@ from setuptools import setup
 
 setup(
     name="nv",
-    version="1.0.0",
+    version="1.0.1",
     description="A Python-based robot-focused framework. Emulates rclpy for ROS in many aspects, but offers improvements and alterations where needed for Navvy.",
     license="All Rights Reserved",
     url="https://navvy.ai",
     author="UNMND, Ltd.",
     author_email="callum@unmnd.com",
-    packages=["nv"],  # same as name
+    packages=["nv"],
     install_requires=[
         "bidict==0.21.4",
         "certifi==2021.10.8",

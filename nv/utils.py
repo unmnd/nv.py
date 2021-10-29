@@ -9,12 +9,12 @@ UNMND, Ltd. 2021
 All Rights Reserved
 """
 
-from logging import exception
 import os
+import pkg_resources
 
 import requests
 
-VERSION = "0.0.1"
+VERSION = pkg_resources.require("nv")[0].version
 MAGIC = "n4vvy"
 CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".nv")
 

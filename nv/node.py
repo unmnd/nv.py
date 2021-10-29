@@ -53,6 +53,7 @@ class Node:
         self.name = name
         self.host = None
         self.node_registered = False
+        self.stopped = False
 
         # Assign sio callback functions
         self.sio.on("connect", self._on_connect)
