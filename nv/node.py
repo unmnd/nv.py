@@ -60,14 +60,16 @@ class Node:
         self.sio.on("disconnect", self._on_disconnect)
 
         # Initialise logger
-        self.log = logger.generate_log(self.name, log_level=logger.DEBUG)
+        self.log = logger.generate_log(
+            self.name, log_level=kwargs.get("log_level") or logger.DEBUG
+        )
 
         self.log.debug(
             f"Initialising '{self.name}' using framework version nv {utils.VERSION}"
         )
 
         # Attempt to find the host IP address
-        self.host = self._discover_host(**kwargs)
+        self.host = self._discover_host(nv_host=kwargs.get("nv_host"))
         self.log.debug(f"Found host: {self.host}")
 
         # Check if another node with this name already exists
@@ -120,7 +122,13 @@ class Node:
             callback=_callback,
         )
 
-    def _discover_host(self, timeout: float = -1, nv_host: str = None, port: int = 5000, subnet: int = 24):
+    def _discover_host(
+        self,
+        timeout: float = -1,
+        nv_host: str = None,
+        port: int = 5000,
+        subnet: int = 24,
+    ):
         """
         Attempt to automatically find the host of the nv network, by trying
         common IPs. The host must be on the same subnet as the node, unless
@@ -264,7 +272,7 @@ class Node:
                     f"The host at {host} is invalid, make sure it is accessible and running the correct framework version ({utils.VERSION})"
                 )
 
-        # First try to find the host in the cache
+        # Then try to find the host in the cache
         if os.path.exists(HOSTCACHE):
             hostcache = json.load(open(HOSTCACHE, "r"))
 
@@ -279,6 +287,15 @@ class Node:
             json.dump(hostcache, open(HOSTCACHE, "w"))
 
             return f"http://nv_host:{port}"
+
+        # Finally try localhost (if running in Docker host)
+        if _test_ip("localhost", port):
+
+            # Save the host to the cache
+            hostcache = {"ip": "localhost", "port": port}
+            json.dump(hostcache, open(HOSTCACHE, "w"))
+
+            return f"http://localhost:{port}"
 
         # If the host wasn't found, scan LAN for a host
         raise NotImplementedError(
