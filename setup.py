@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="nv",
-    version="1.0.2",
+    version="1.0.3",
     description="A Python-based robot-focused framework. Emulates rclpy for ROS in many aspects, but offers improvements and alterations where needed for Navvy.",
     license="All Rights Reserved",
     url="https://navvy.ai",
@@ -19,6 +19,7 @@ setup(
         "requests==2.26.0",
         "urllib3==1.26.7",
         "pyyaml==6.0",
+        "click==8.0.3",
     ],
     python_requires=">=3.8",
 )
