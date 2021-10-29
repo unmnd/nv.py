@@ -120,7 +120,7 @@ class Node:
             callback=_callback,
         )
 
-    def _discover_host(self, timeout: float = -1, port: int = 5000, subnet: int = 24):
+    def _discover_host(self, timeout: float = -1, nv_host: str = None, port: int = 5000, subnet: int = 24):
         """
         Attempt to automatically find the host of the nv network, by trying
         common IPs. The host must be on the same subnet as the node, unless
@@ -136,6 +136,8 @@ class Node:
         ### Parameters:
             - `timeout` (float): How long to wait for a response from the server.
                 [Default: `-1` (No timeout)]
+            - `nv_host` (str): Override with a manually specified host in the form
+                <host>:<port>
             - `port` (int): The port the host is listening for web requests on.
                 [Default: `5000`]
             - `subnet` (int): The subnet mask of the host.
@@ -240,10 +242,10 @@ class Node:
                 self.log.debug(f"Scanning...")
                 nma.wait(1)
 
-        # The environment variable overrides all if it exists
-        if host := os.environ.get("NV_HOST"):
+        # Try the supplied nv_host kwarg or env variable
+        if host := (nv_host or os.environ.get("NV_HOST")):
 
-            # Remove protocol
+            # Remove protocol if supplied
             host = host.split("://")[-1]
 
             # Split port
