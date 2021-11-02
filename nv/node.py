@@ -15,17 +15,16 @@ All Rights Reserved
 
 import json
 import marshal
-import os
 import threading
 import time
 import typing
+import uuid
 
 import redis
-import requests
 import serpent
 import yaml
 
-from nv import exceptions, logger, services, utils, timer
+from nv import exceptions, logger, timer, utils
 
 
 class Node:
@@ -75,8 +74,8 @@ class Node:
         # }
         self._subscriptions = {}
 
-        # The services dictionary is used to keep track of exposed services,
-        # which other nodes can access using pyro5.
+        # The services dictionary is used to keep track of exposed services, and
+        # their unique topic names for calling.
         self._services = {}
 
         # Connect redis clients
@@ -108,9 +107,10 @@ class Node:
         if self.skip_registration:
             self.log.warning("Skipping node registration...")
         else:
+
             # Check if another node with this name already exists
             if self.node_exists(self.name):
-                raise exceptions.DuplicateNodeName(
+                raise exceptions.DuplicateNodeNameException(
                     "A node with the name "
                     + self.name
                     + " already exists on this network."
@@ -532,7 +532,31 @@ class Node:
         """
         raise NotImplementedError("Destroy node is not yet implemented")
 
-    def create_service(self, service_name: str, callback_function):
+    def get_services(self):
+        """
+        Get all the services currently registered, and their topic ID used when
+        calling them.
+
+        ---
+
+        ### Returns:
+            A dictionary containing the service information.
+        """
+
+        # Get all nodes currently registered
+        nodes = self.get_nodes()
+
+        # Extract the service information from the nodes
+        services = {}
+
+        for node, info in nodes.items():
+            if registered_services := info.get("services"):
+                for service_name, service_id in registered_services.items():
+                    services[service_name] = service_id
+
+        return services
+
+    def create_service(self, service_name: str, callback_function: typing.Callable):
         """
         ### Create a service.
 
@@ -554,12 +578,33 @@ class Node:
             create_service("test", callback_function)
         """
 
-        # Initialise the server
-        server = services.ServiceServer(
-            name=service_name, callback=callback_function, sio=self._sio
-        )
+        def handle_service_callback(message):
+            """
+            Used to handle requests to call a service, and respond by publishing
+            any data on the requested topic.
+            """
 
-        server.create_service()
+            # Get the response topic from the message
+            response_topic = message.get("response_topic")
+
+            # Get args and kwargs from the message
+            args = message.get("args", [])
+            kwargs = message.get("kwargs", {})
+
+            # Call the service
+            result = callback_function(*args, **kwargs)
+
+            # Publish the result on the response topic
+            self.publish(response_topic, result)
+
+        # Generate a unique ID for the service
+        service_id = str(uuid.uuid4())
+
+        # Register a message handler for the service
+        self.create_subscription(service_id, handle_service_callback)
+
+        # Save the service name and ID
+        self._services[service_name] = service_id
 
     def call_service(self, service_name: str, *args, **kwargs):
         """
@@ -594,10 +639,62 @@ class Node:
             response = future.get_response()
         """
 
-        # Initialise the server
-        client = services.ServiceClient(name=service_name, sio=self._sio)
+        class ServiceClient:
+            def __init__(self):
+                self._response = None
+                self._response_received = threading.Event()
 
-        client.call_service(*args, **kwargs)
+            def wait(self, timeout: float = None):
+                """
+                Wait for the response.
+                """
+
+                self._response_received.wait(timeout)
+                self._response_received.clear()
+
+            def get_response(self):
+                """
+                Get the response.
+                """
+                return self._response
+
+            def _response_callback(self, message):
+                """
+                Used to handle the response to a service call.
+                """
+                self._response = message
+                self._response_received.set()
+
+        # Get all the services currently registered
+        services = self.get_services()
+
+        # Check the service exists
+        if service_name not in services:
+            raise ValueError(f"Service '{service_name}' does not exist")
+
+        # Get the service ID
+        service_id = services[service_name]
+
+        # Generate a unique ID for the response topic
+        response_topic = str(uuid.uuid4())
+
+        # Create a message to send to the service
+        message = {
+            "response_topic": response_topic,
+            "args": args,
+            "kwargs": kwargs,
+        }
+
+        # Create a client to wait for the response
+        client = ServiceClient()
+
+        # Subscribe to the response topic
+        self.create_subscription(response_topic, client._response_callback)
+
+        # Publish the message to the service
+        self.publish(service_id, message)
+
+        # Return the client
         return client
 
     def get_parameter(
