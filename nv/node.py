@@ -151,6 +151,7 @@ class Node:
         self._renew_node_information_timer = timer.LoopTimer(
             interval=5,
             function=_renew_node_information,
+            immediate=True,
         )
 
         # Set the node as registered
