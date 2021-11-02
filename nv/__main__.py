@@ -11,6 +11,7 @@ UNMND, Ltd. 2021
 All Rights Reserved
 """
 
+import time
 import uuid
 
 import click
@@ -73,6 +74,27 @@ def topic_echo(topic):
         print(str(message))
 
     node.node.create_subscription(topic, echo_callback)
+
+
+@topic.command("pub")
+@click.argument("topic")
+@click.argument("msg")
+@click.option(
+    "--rate", default=0, help="Continuously publish the data at a specified rate in hz."
+)
+def topic_echo(topic, msg, rate):
+    """
+    Publish a message to a topic.
+    """
+    click.echo(f"Publishing to topic: {topic}")
+
+    if rate > 0:
+        while True:
+            node.node.publish(topic, msg)
+            click.echo(f"Published: {msg}")
+            time.sleep(1 / rate)
+    else:
+        node.node.publish(topic, msg)
 
 
 @main.command("param")
