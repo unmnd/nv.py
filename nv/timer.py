@@ -11,8 +11,10 @@ UNMND, Ltd. 2021
 All Rights Reserved
 """
 
-from threading import Timer
 import typing
+from threading import Timer
+
+OneShotTimer = Timer
 
 
 class LoopTimer:

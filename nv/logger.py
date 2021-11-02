@@ -74,14 +74,4 @@ def generate_log(name: str, log_level: int = logging.DEBUG):
     return log
 
 
-def get_logger(name: str, log_level: int = logging.DEBUG):
-    """
-    Alias for generate_log.
-
-    Parameters:
-        name (str): Name of the log.
-
-    Returns:
-        logging.Logger: Logger object.
-    """
-    return generate_log(name, log_level)
+get_logger = generate_log
