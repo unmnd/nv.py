@@ -386,7 +386,11 @@ class Node:
 
     def _decode_pubsub_message(self, message):
         """
-        Decode a message received by a callback to the Redis pubsub.
+        # Decode a message received by a callback to the Redis pubsub.
+
+        By default it uses `marshal` for speed, but if this fails it will fall
+        back to `serpent`, which supports more data types, including initialised
+        classes!
 
         ---
 
@@ -406,7 +410,11 @@ class Node:
 
     def _encode_pubsub_message(self, message):
         """
-        Encode a message to be sent to the Redis pubsub.
+        # Encode a message to be sent to the Redis pubsub.
+
+        By default it uses `marshal` for speed, but if this fails it will fall
+        back to `serpent`, which supports more data types, including initialised
+        classes!
 
         ---
 
