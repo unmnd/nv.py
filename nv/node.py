@@ -23,12 +23,9 @@ import typing
 import redis
 import requests
 import serpent
-import socketio
 import yaml
 
-from nv import exceptions, logger, services, udp_server, utils
-
-HOSTCACHE = os.path.join(utils.CONFIG_PATH, "hostcache.json")
+from nv import exceptions, logger, services, utils, timer
 
 
 class Node:
@@ -68,6 +65,7 @@ class Node:
         self.node_registered = False
         self.skip_registration = skip_registration
         self.stopped = False
+        self._start_time = time.time()
 
         # The subscriptions dictionary is in the form of:
         # {
@@ -75,218 +73,90 @@ class Node:
         #   topic2: [callback2, callback3],
         #   ...
         # }
-        self.subscriptions = {}
+        self._subscriptions = {}
 
-        # SocketIO client
-        self._sio = socketio.Client()
+        # The services dictionary is used to keep track of exposed services,
+        # which other nodes can access using pyro5.
+        self._services = {}
 
-        # Assign sio callback functions
-        self._sio.on("connect", self._on_connect)
-        self._sio.on("disconnect", self._on_disconnect)
-
-        # Attempt to find the host IP address
-        self.host = self._discover_host(nv_host=kwargs.get("nv_host"))
-        self.log.debug(f"Found host: {self.host}")
-
-        # Check if another node with this name already exists
-        if not self.skip_registration and utils.node_exists(
-            host=self.host, node_name=self.name
-        ):
-            raise exceptions.DuplicateNodeName(
-                "A node with the name " + self.name + " already exists on this network."
-            )
-
-        # Connect socket-io client
-        self._sio.connect(self.host)
-
-        # Connect redis client
-        self._redis = self._connect_redis(
+        # Connect redis clients
+        # The topics database stores messages for communication between nodes.
+        # The key is always the topic.
+        self._redis_topics = self._connect_redis(
             redis_host=kwargs.get("redis_host"),
             port=kwargs.get("redis_port") or 6379,
-            db=kwargs.get("redis_db") or 0,
+            db=0,
         )
 
-        # Start the pubsub loop in a separate thread.
-        Node._pubsub = self._redis.pubsub()
-        Node._pubsub_thread = threading.Thread(target=self._pubsub_loop)
-        Node._pubsub_thread.start()
+        # The parameters database stores key-value parameters to be used for
+        # each node. The key is the node_name.parameter_name.
+        self._redis_parameters = self._connect_redis(
+            redis_host=kwargs.get("redis_host"),
+            port=kwargs.get("redis_port") or 6379,
+            db=1,
+        )
 
-    def _on_connect(self):
-        """
-        Callback for socket-io connect event.
-        """
-        self.log.debug("Connected to server.")
+        # The nodes database stores up-to-date information about which nodes are
+        # active on the network. Each node is responsible for storing and
+        # keeping it's own information active.
+        self._redis_nodes = self._connect_redis(
+            redis_host=kwargs.get("redis_host"),
+            port=kwargs.get("redis_port") or 6379,
+            db=2,
+        )
 
         if self.skip_registration:
-            self.log.warning("Skipping node registration.")
+            self.log.warning("Skipping node registration...")
         else:
-            self.log.debug(f"Attempting to register node '{self.name}'.")
+            # Check if another node with this name already exists
+            if self.node_exists(self.name):
+                raise exceptions.DuplicateNodeName(
+                    "A node with the name "
+                    + self.name
+                    + " already exists on this network."
+                )
+
+            # Register the node with the server
             self._register_node()
 
-    def _on_disconnect(self):
-        """
-        Callback for socket-io disconnect event.
-        """
-        self.log.warning("Disconnected from server.")
+        # Start the pubsub loop for topics in a separate thread.
+        Node._pubsub = self._redis_topics.pubsub()
+        Node._pubsub_thread = threading.Thread(target=self._pubsub_loop)
+        Node._pubsub_thread.start()
 
     def _register_node(self):
         """
         Register the node with the server.
         """
 
-        def _callback(data):
+        def _renew_node_information():
             """
-            Handles response from the server after a registration request.
+            Renew the node information, by overwriting the node information and
+            resetting a 10 second expiry timer.
             """
-            if data["status"] == "success":
-                self.node_registered = True
-                self.log.info("Node successfully registered with server.")
-            else:
-                self.log.error(
-                    "Failed to register node with server: " + data["message"]
-                )
 
-        self._sio.emit(
-            "register_node",
-            {
-                "magic": utils.MAGIC,
-                "version": utils.VERSION,
-                "node_name": self.name,
-            },
-            callback=_callback,
+            # Check if the node has been stopped, if so, stop the timer
+            if self.stopped:
+                self._renew_node_information_timer.stop()
+                return
+
+            # Update the node information
+            self._redis_nodes.set(
+                self.name,
+                marshal.dumps(self.get_node_information()),
+                ex=10,
+            )
+
+        # Create a timer which renews the node information every 5 seconds
+        self._renew_node_information_timer = timer.LoopTimer(
+            interval=5,
+            function=_renew_node_information,
         )
 
-    def _discover_host(
-        self,
-        timeout: float = -1,
-        nv_host: str = None,
-        port: int = 5000,
-        subnet: int = 24,
-    ):
-        """
-        Attempt to automatically find the host of the nv network, by trying
-        common IPs. The host must be on the same subnet as the node, unless
-        overwritten in the `subnet` parameter.
+        # Set the node as registered
+        self.node_registered = True
 
-        If the host is found, the IP is stored in a file called `.hostcache`,
-        which will be tried first next time the function is called.
-
-        It attempts to find the host by sending GET requests to all IPs on the
-
-        ---
-
-        ### Parameters:
-            - `timeout` (float): How long to wait for a response from the server.
-                [Default: `-1` (No timeout)]
-            - `nv_host` (str): Override with a manually specified host in the form
-                <host>:<port>
-            - `port` (int): The port the host is listening for web requests on.
-                [Default: `5000`]
-            - `subnet` (int): The subnet mask of the host.
-                [Default: `24` (i.e. `X.X.X.0` - `X.X.X.255`)]
-
-        ---
-
-        ### Returns:
-            The host of the nv network if found, otherwise `None`.
-        """
-
-        def _test_ip(ip, port):
-            """
-            ### Check if nv_host is running on the given IP.
-
-            ---
-
-            ### Parameters:
-                - `ip` (str): The IP to test.
-
-            ---
-
-            ### Returns:
-                `True`, version if the host is running on the given IP, `False` otherwise.
-            """
-            try:
-                # Attempt to connect to the host
-                response = requests.get(
-                    "http://" + ip + ":" + str(port) + "/ping",
-                )
-                if response.status_code == 200:
-
-                    # Check the response JSON to ensure it is part of the nv
-                    # network, and is running the correct version.
-                    response_json = response.json()
-
-                    if response_json.get("magic") != utils.MAGIC:
-                        self.log.error(
-                            f"Magic number mismatch. Got: {response_json.get('magic')}, expected: {utils.MAGIC}"
-                        )
-                        return False
-
-                    if response_json.get("status") != "success":
-                        self.log.error(response_json.get("message"))
-                        return False
-
-                    if response_json.get("version") != utils.VERSION:
-                        self.log.error(
-                            f"Version mismatch. Got: {response_json.get('version')}, expected: {utils.VERSION}"
-                        )
-                        return False
-
-                    else:
-                        return True
-
-            except requests.exceptions.ConnectionError:
-                return False
-
-        # Try the supplied nv_host kwarg or env variable
-        if host := (nv_host or os.environ.get("NV_HOST")):
-
-            # Remove protocol if supplied
-            host = host.split("://")[-1]
-
-            # Split port
-            host_ip, host_port = host.rsplit(":", 1)
-
-            # Check if the host is running the correct version
-            if _test_ip(ip=host_ip, port=host_port):
-
-                # Save the host to the cache
-                hostcache = {"ip": host_ip, "port": host_port}
-                json.dump(hostcache, open(HOSTCACHE, "w"))
-
-                return f"http://{host_ip}:{host_port}"
-            else:
-                raise Exception(
-                    f"The host at {host} is invalid, make sure it is accessible and running the correct framework version ({utils.VERSION})"
-                )
-
-        # Then try to find the host in the cache
-        if os.path.exists(HOSTCACHE):
-            hostcache = json.load(open(HOSTCACHE, "r"))
-
-            if _test_ip(ip=hostcache["ip"], port=hostcache["port"]):
-                return f"http://{hostcache['ip']}:{hostcache['port']}"
-
-        # If the host wasn't found, try a named host (if running in Docker bridge)
-        if _test_ip("nv_host", port):
-
-            # Save the host to the cache
-            hostcache = {"ip": "nv_host", "port": port}
-            json.dump(hostcache, open(HOSTCACHE, "w"))
-
-            return f"http://nv_host:{port}"
-
-        # Finally try localhost (if running in Docker host)
-        if _test_ip("localhost", port):
-
-            # Save the host to the cache
-            hostcache = {"ip": "localhost", "port": port}
-            json.dump(hostcache, open(HOSTCACHE, "w"))
-
-            return f"http://localhost:{port}"
-
-        # If the host wasn't found, raise an exception
-        raise exceptions.HostNotFoundException()
+        self.log.info(f"Node successfully registered!")
 
     def _connect_redis(self, redis_host: str = None, port: int = 6379, db: int = 0):
         """
@@ -361,28 +231,6 @@ class Node:
                 continue
 
             time.sleep(0.001)
-
-    def _check_api_response(self, r):
-        """
-        ### Check a response from the nv API for errors.
-
-        ---
-
-        ### Parameters:
-            - `r` (requests.Response): The response to check.
-
-        ---
-
-        ### Returns:
-            `True` if the response was successful, `False` otherwise.
-        """
-        if r.status_code == 200:
-            if r.json().get("status") == "success":
-                return True
-            else:
-                self.log.error(r.json().get("message"))
-
-        return False
 
     def _decode_pubsub_message(self, message):
         """
@@ -465,7 +313,7 @@ class Node:
         message = self._decode_pubsub_message(message.get("data"))
 
         # Call the corresponding callback(s)
-        for callback in self.subscriptions[topic]:
+        for callback in self._subscriptions[topic]:
             callback(message)
 
     def get_logger(self, name=None, log_level=logger.INFO):
@@ -498,6 +346,82 @@ class Node:
             The name of the node.
         """
         return self.name
+
+    def get_node_information(self, node_name: str = None) -> dict:
+        """
+        ### Return the node information dictionary.
+        If a node name is provided, the information for that node is returned.
+        If no node name is provided, the information for the current node is returned.
+
+        ---
+
+        ### Returns:
+            The node information dictionary.
+        """
+        if node_name is None:
+            return {
+                "time_registered": self._start_time,
+                "time_modified": time.time(),
+                "version": utils.VERSION,
+                "subscriptions": list(self._subscriptions.keys()),
+                "services": list(self._services.keys()),
+            }
+        else:
+            return marshal.loads(self._redis_nodes.get(node_name))
+
+    def get_nodes(self) -> typing.Dict[str, dict]:
+        """
+        ### Get all nodes present in the network.
+
+        ---
+
+        ### Returns:
+            A dictionary containing all nodes on the network.
+        """
+        return {
+            node: marshal.loads(self._redis_nodes.get(node))
+            for node in self._redis_nodes.keys()
+        }
+
+    def get_topic_subscriptions(self, topic: str) -> typing.List[str]:
+        """
+        ### Get a list of nodes which are subscribed to a specific topic.
+
+        ---
+
+        ### Parameters:
+            - `topic` (str): The topic to get the subscriptions for.
+
+        ---
+
+        ### Returns:
+            A list of nodes which are subscribed to the topic.
+        """
+
+        # First, get all registered nodes
+        nodes = self.get_nodes()
+
+        # Then, filter out the nodes which are subscribed to the topic
+        return [
+            node
+            for node, info in nodes.items()
+            if topic in info.get("subscriptions", {})
+        ]
+
+    def node_exists(self, node_name: str) -> bool:
+        """
+        ### Check if a node exists.
+        Check if a node exists on the network.
+
+        ---
+
+        ### Parameters:
+            - `node_name` (str): The name of the node to check.
+
+        ### Returns:
+            - `True` if the node exists, `False` otherwise.
+        """
+        return self._redis_nodes.exists(node_name)
 
     def create_subscription(self, topic_name: str, callback_function):
         """
@@ -534,10 +458,10 @@ class Node:
         Node._pubsub.subscribe(**{topic_name: self._handle_subscription_callback})
 
         # Add the subscription to the list of subscriptions for this topic
-        if topic_name in self.subscriptions:
-            self.subscriptions[topic_name].append(callback_function)
+        if topic_name in self._subscriptions:
+            self._subscriptions[topic_name].append(callback_function)
         else:
-            self.subscriptions[topic_name] = [callback_function]
+            self._subscriptions[topic_name] = [callback_function]
 
     def get_latest_message(self, topic_name: str):
         """
@@ -562,7 +486,7 @@ class Node:
             The latest message received on the topic, or `None` if no messages
             have been received.
         """
-        return self._redis.get(topic_name)
+        return self._redis_topics.get(topic_name)
 
     def destroy_subscription(self, topic_name: str):
         """
@@ -578,8 +502,8 @@ class Node:
         Node._pubsub.unsubscribe(topic_name)
 
         # Remove any callbacks for this subscription
-        if topic_name in self.subscriptions:
-            del self.subscriptions[topic_name]
+        if topic_name in self._subscriptions:
+            del self._subscriptions[topic_name]
 
     def publish(self, topic_name: str, message):
         """
@@ -598,7 +522,9 @@ class Node:
         """
 
         # Send the message to the Redis pubsub
-        return self._redis.publish(topic_name, self._encode_pubsub_message(message))
+        return self._redis_topics.publish(
+            topic_name, self._encode_pubsub_message(message)
+        )
 
     def destroy_node(self):
         """
@@ -985,78 +911,3 @@ class Node:
         if self.set_parameters(parameters):
             self.log.info("Parameters set successfully.")
             return True
-
-    def create_udp_server(
-        self,
-        callback: typing.Callable,
-        port: int = 0,
-        host: str = "localhost",
-        buffer_size: int = 1024,
-    ):
-        """
-        ### Create a UDP server to listen for UDP dataframes.
-        This allows much faster client-client communication, as opposed to the
-        standard socket-io client-server-client method (approx 10x improvement).
-        All data transferred must be in bytes.
-
-        #### Important notes:
-        - Any message sent must be smaller than the buffer size.
-        - Any message larger than the buffer size will be truncated.
-        - There is no special handling of message size, sending large messages
-            must be handled by the user.
-        - There is no guarantee that the message will be received by the
-            destination. Any error correction must be handled by the user.
-
-
-        ---
-
-        ### Parameters:
-            - `callback` (function): A function to call when a dataframe is received.
-                The function should take a single argument, which is the dataframe.
-            - `port` (int): The port to listen on. If 0, a random port will be
-                chosen.
-            - `host` (str): The host to listen on. Defaults to "localhost".
-            - `buffer_size` (int): The size of the buffer to use for receiving data.
-
-        ---
-
-        ### Returns:
-            `udp_server` if the server was created successfully.
-                Methods:
-                    - `udp_server.start()`: Starts the server
-                    - `udp_server.stop()`: Stops the server
-                    - `udp_server.wait_until_ready()`: Waits until the server is ready to receive data.
-                    - `udp_server.get_host()`: Returns the host the server is listening on.
-                    - `udp_server.get_port()`: Returns the port the server is listening on.
-        """
-
-        return udp_server.UDP_Server(
-            port=port, host=host, callback=callback, buffer_size=buffer_size
-        )
-
-    def create_udp_client(
-        self,
-        port: int,
-        host: str = "localhost",
-    ):
-        """
-        ### Create a UDP client to send UDP dataframes.
-        This allows much faster client-client communication, as opposed to the
-        standard socket-io client-server-client method. All data transferred
-        must be in bytes.
-
-        ---
-
-        ### Parameters:
-            - `port` (int): The port to send data to.
-            - `host` (str): The host to send data to. Defaults to "localhost".
-
-        ---
-
-        ### Returns:
-            `udp_client` if the client was created successfully.
-                Methods:
-                    - `udp_client.send(dataframe)`: Sends a dataframe to the server
-        """
-
-        return udp_server.UDP_Client(port=port, host=host)
