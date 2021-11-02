@@ -8,6 +8,7 @@ standard socketio client-server-client communication.
 It is much faster (~1ms) than socketio (~10ms), but a limitation is that all
 data must be sent and received in bytes.
 
+Callum Morrison, 2021
 UNMND, Ltd. 2021
 <callum@unmnd.com>
 

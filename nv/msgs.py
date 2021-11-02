@@ -12,10 +12,11 @@ which is useful throughout various nodes.
 At the end of the day, use of these are completely optional, but it might be
 useful to create more intercompatible nodes.
 
-An additional node, if you use this module you add a function call into each
+An additional note, if you use this module you add a function call into each
 message generation, which typically adds about 70ns to execution time. If you
 need ultimate performance, make each message manually in your code!
 
+Callum Morrison, 2021
 UNMND, Ltd. 2021
 <callum@unmnd.com>
 

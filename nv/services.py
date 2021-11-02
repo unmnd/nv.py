@@ -5,6 +5,7 @@
 Add support for services. Services work in a similar manner to topic publishers
 and subscribers, except the publisher expects a response from the service.
 
+Callum Morrison, 2021
 UNMND, Ltd. 2021
 <callum@unmnd.com>
 

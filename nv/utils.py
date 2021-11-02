@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
+Extra utilities and helper functions.
+
 Callum Morrison, 2021
 UNMND, Ltd. 2021
 <callum@unmnd.com>
