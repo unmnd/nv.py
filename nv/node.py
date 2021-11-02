@@ -14,10 +14,15 @@ All Rights Reserved
 """
 
 import json
+import marshal
 import os
+import threading
+import time
 import typing
 
+import redis
 import requests
+import serpent
 import socketio
 import yaml
 
@@ -27,7 +32,7 @@ HOSTCACHE = os.path.join(utils.CONFIG_PATH, "hostcache.json")
 
 
 class Node:
-    def __init__(self, name: str, **kwargs):
+    def __init__(self, name: str, skip_registration: bool = False, **kwargs):
         """
         The Node class is the main class of the nv framework. It is used to
         handle all interaction with the framework, including initialisation of
@@ -44,50 +49,79 @@ class Node:
 
         ### Parameters:
             - `name` (str): The name of the node.
+            - `skip_registration` (bool): Whether to skip registering the node.
+                This should not be used for normal nodes, but is useful for
+                commandline access.
         """
-
-        # SocketIO client
-        self.sio = socketio.Client()
-
-        # Initialise parameters
-        self.name = name
-        self.host = None
-        self.node_registered = False
-        self.stopped = False
-
-        # Assign sio callback functions
-        self.sio.on("connect", self._on_connect)
-        self.sio.on("disconnect", self._on_disconnect)
 
         # Initialise logger
         self.log = logger.generate_log(
-            self.name, log_level=kwargs.get("log_level") or logger.DEBUG
+            name, log_level=kwargs.get("log_level") or logger.DEBUG
         )
 
         self.log.debug(
-            f"Initialising '{self.name}' using framework version nv {utils.VERSION}"
+            f"Initialising '{name}' using framework version nv {utils.VERSION}"
         )
+
+        # Initialise parameters
+        self.name = name
+        self.node_registered = False
+        self.skip_registration = skip_registration
+        self.stopped = False
+
+        # The subscriptions dictionary is in the form of:
+        # {
+        #   topic1: callback1,
+        #   topic2: callback2,
+        #   ...
+        # }
+        self.subscriptions = {}
+
+        # SocketIO client
+        self._sio = socketio.Client()
+
+        # Assign sio callback functions
+        self._sio.on("connect", self._on_connect)
+        self._sio.on("disconnect", self._on_disconnect)
 
         # Attempt to find the host IP address
         self.host = self._discover_host(nv_host=kwargs.get("nv_host"))
         self.log.debug(f"Found host: {self.host}")
 
         # Check if another node with this name already exists
-        if utils.node_exists(host=self.host, node_name=self.name):
+        if not self.skip_registration and utils.node_exists(
+            host=self.host, node_name=self.name
+        ):
             raise exceptions.DuplicateNodeName(
                 "A node with the name " + self.name + " already exists on this network."
             )
 
         # Connect socket-io client
-        self.sio.connect(self.host)
+        self._sio.connect(self.host)
+
+        # Connect redis client
+        self._redis = self._connect_redis(
+            redis_host=kwargs.get("redis_host"),
+            port=kwargs.get("redis_port") or 6379,
+            db=kwargs.get("redis_db") or 0,
+        )
+
+        # Start the pubsub loop in a separate thread.
+        Node._pubsub = self._redis.pubsub()
+        Node._pubsub_thread = threading.Thread(target=self._pubsub_loop)
+        Node._pubsub_thread.start()
 
     def _on_connect(self):
         """
         Callback for socket-io connect event.
         """
         self.log.debug("Connected to server.")
-        self.log.debug(f"Attempting to register node '{self.name}'.")
-        self._register_node()
+
+        if self.skip_registration:
+            self.log.warning("Skipping node registration.")
+        else:
+            self.log.debug(f"Attempting to register node '{self.name}'.")
+            self._register_node()
 
     def _on_disconnect(self):
         """
@@ -112,7 +146,7 @@ class Node:
                     "Failed to register node with server: " + data["message"]
                 )
 
-        self.sio.emit(
+        self._sio.emit(
             "register_node",
             {
                 "magic": utils.MAGIC,
@@ -204,52 +238,6 @@ class Node:
             except requests.exceptions.ConnectionError:
                 return False
 
-        def _get_lan_ip():
-            """
-            Gets the LAN IP address, even if /etc/hosts contains localhost or if there is no internet connection.
-            """
-            import socket
-
-            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            try:
-                # Does not need to be reachable
-                sock.connect(("10.255.255.255", 1))
-                ip = sock.getsockname()[0]
-            except Exception:
-                ip = "127.0.0.1"
-            finally:
-                sock.close()
-            return ip
-
-        def _autodiscover_host():
-            """
-            Scan a subnet range to in an attempt to find the host, using nmap
-            for service discovery.
-            """
-            import nmap
-
-            def _callback_result(host, scan_result):
-                """
-                Callback function for the nmap scan.
-                """
-                self.log.debug(f"Found host: {host}")
-                self.log.debug(f"Scan result: {scan_result}")
-
-            # Get the LAN IP address
-            # ip = _get_lan_ip()
-            ip = "192.168.1.0/24"
-            scan_ip = ".".join(ip.split(".")[:-1]) + ".0/" + str(subnet)
-
-            # Scan the subnet
-            self.log.info(f"Scanning subnet: {scan_ip}")
-            nma = nmap.PortScannerAsync()
-            nma.scan(scan_ip, str(port), callback=_callback_result, arguments="-sP")
-
-            # Wait for the scan to finish
-            while nma.still_scanning():
-                self.log.debug(f"Scanning...")
-                nma.wait(1)
-
         # Try the supplied nv_host kwarg or env variable
         if host := (nv_host or os.environ.get("NV_HOST")):
 
@@ -297,11 +285,82 @@ class Node:
 
             return f"http://localhost:{port}"
 
-        # If the host wasn't found, scan LAN for a host
-        raise NotImplementedError(
-            "Scanning LAN for host is not yet implemented, please manually specify a host instead"
+        # If the host wasn't found, raise an exception
+        raise exceptions.HostNotFoundException()
+
+    def _connect_redis(self, redis_host: str = None, port: int = 6379, db: int = 0):
+        """
+        Connect the Redis client to the database to allow messaging. It attempts
+        to find the host automatically on either localhost, or connecting to a
+        container named 'redis'.
+
+        Optionally, the host can be specified using the parameter `redis_host`,
+        to overwrite autodetection.
+
+        ---
+
+        ### Parameters:
+            - `redis_host` (str): The host of the redis database.
+            - `port` (int): The port of the redis database.
+            - `db` (int): The database hosting messaging data.
+
+        ---
+
+        ### Returns:
+            The redis client.
+        """
+
+        def _test_connection(r: redis.Redis):
+            """
+            ### Check if the redis client is connected.
+
+            ---
+
+            ### Parameters:
+                - `r` (redis.Redis): The redis client.
+
+            ---
+
+            ### Returns:
+                `True` if the client is connected, `False` otherwise.
+            """
+            try:
+                r.ping()
+                return True
+            except redis.exceptions.ConnectionError:
+                return False
+
+        if redis_host:
+            r = redis.Redis(host=redis_host, port=port, db=db)
+
+            # Don't catch for errors; if a host is supplied it should override
+            # any other auto-detection.
+            r.ping()
+        else:
+            for host in ["redis", "localhost"]:
+                r = redis.Redis(host=host, port=port, db=db)
+
+                if _test_connection(r):
+                    return r
+
+        raise ConnectionError(
+            "Could not connect to Redis. Check it's running and accessible!"
         )
-        return _autodiscover_host()
+
+    def _pubsub_loop(self):
+        """
+        Continously monitors the Redis server for updated messages, enabling
+        subscription callbacks to trigger.
+        """
+        while True:
+            try:
+                Node._pubsub.get_message()
+            except RuntimeError:
+                # If there are no subscriptions, an error is thrown. This is
+                # fine; when a subscription is added the errors will stop.
+                continue
+
+            time.sleep(0.001)
 
     def _check_api_response(self, r):
         """
@@ -324,6 +383,82 @@ class Node:
                 self.log.error(r.json().get("message"))
 
         return False
+
+    def _decode_pubsub_message(self, message):
+        """
+        Decode a message received by a callback to the Redis pubsub.
+
+        ---
+
+        ### Parameters:
+            - `message` (str): The message to decode.
+
+        ---
+
+        ### Returns:
+            The decoded message.
+        """
+        try:
+            return marshal.loads(message)
+        except (EOFError, TypeError, ValueError):
+            self.log.debug("Falling back to serpent for data serialisation...")
+            return serpent.loads(message)
+
+    def _encode_pubsub_message(self, message):
+        """
+        Encode a message to be sent to the Redis pubsub.
+
+        ---
+
+        ### Parameters:
+            - `message` (str): The message to encode.
+
+        ---
+
+        ### Returns:
+            The encoded message.
+        """
+        try:
+            return marshal.dumps(message)
+        except (EOFError, TypeError, ValueError):
+            self.log.debug("Falling back to serpent for data serialisation...")
+            return serpent.dumps(message)
+
+    def _handle_subscription_callback(self, message):
+        """
+        Handle messages received as a callback from Redis subscriptions. This is
+        required because Redis callbacks contain a dictionary of data (as
+        opposed to just the value from key changed).
+
+        The dictionary is as follows:
+            {
+                "type": "message",
+                "pattern": None,
+                "channel": <topic name: bytes>,
+                "data": <message: bytes>
+            }
+
+        The data is decoded and send to the callback function supplied in the
+        original subscription request.
+
+        ---
+
+        ### Parameters:
+            - `message` (dict): The message to handle.
+
+        ---
+
+        ### Returns:
+            `None`
+        """
+
+        # Decode the message
+        topic = message.get("channel").decode("utf-8")
+        message = self._decode_pubsub_message(message.get("data"))
+
+        # Call the corresponding callback(s)
+        for callback in self.subscriptions[topic]:
+            callback(message)
 
     def get_logger(self, name=None, log_level=logger.INFO):
         """
@@ -372,12 +507,71 @@ class Node:
         ### Example::
 
             # Create a subscription to the topic "test"
-            def callback_function(message):
-                print(message)
+            def callback_function(msg):
+                print(msg)
 
             create_subscription("test", callback_function)
         """
-        self.sio.on("_topic" + topic_name, callback_function)
+
+        # The `Node` object is used rather than `self` when accessing the pubsub
+        # object, which allows the separate thread running the pubsub loop
+        # (`_pubsub_loop`) to access subscriptions created at any point, after
+        # the loop has already started.
+
+        # The alternative is to stop and re-create the loop whenever a new
+        # subscription is added, however this could result in missed messages for
+        # a short period of time, and so it's avoided.
+
+        # Create the subscription to Redis
+        Node._pubsub.subscribe(**{topic_name: self._handle_subscription_callback})
+
+        # Add the subscription to the list of subscriptions for this topic
+        if topic_name in self.subscriptions:
+            self.subscriptions[topic_name].append(callback_function)
+        else:
+            self.subscriptions[topic_name] = [callback_function]
+
+    def get_latest_message(self, topic_name: str):
+        """
+        ### Get the latest message received on a topic.
+
+        Using this method is an alternative to subscribing to the topic, as it
+        allows for a node to fetch data only when it is required, and without
+        needing to rate limit messages received in a callback.
+
+        A limit with using this method is that there is no indication of how old
+        the data is; which might cause issues with time-critical applications.
+
+        ---
+
+        ### Parameters:
+            - `topic_name` (str): The name of the topic to get the latest message
+                from.
+
+        ---
+
+        ### Returns:
+            The latest message received on the topic, or `None` if no messages
+            have been received.
+        """
+        return self._redis.get(topic_name)
+
+    def destroy_subscription(self, topic_name: str):
+        """
+        ### Destroy a subscription to a topic.
+
+        ---
+
+        ### Parameters:
+            - `topic_name` (str): The name of the topic to unsubscribe from.
+        """
+
+        # Unsubscribe from Redis
+        Node._pubsub.unsubscribe(topic_name)
+
+        # Remove any callbacks for this subscription
+        if topic_name in self.subscriptions:
+            del self.subscriptions[topic_name]
 
     def publish(self, topic_name: str, message):
         """
@@ -395,18 +589,8 @@ class Node:
             bool: `True` if the message was successfully published, `False` otherwise.
         """
 
-        def _callback(data):
-            """
-            Handles response from the server after a publish request.
-            """
-            if data["status"] != "success":
-                self.log.error("Failed to publish message: " + data["message"])
-
-        self.sio.emit(
-            "publish_on_topic",
-            data={"topic": topic_name, "message": message},
-            callback=_callback,
-        )
+        # Send the message to the Redis pubsub
+        return self._redis.publish(topic_name, self._encode_pubsub_message(message))
 
     def destroy_node(self):
         """
@@ -438,7 +622,7 @@ class Node:
 
         # Initialise the server
         server = services.ServiceServer(
-            name=service_name, callback=callback_function, sio=self.sio
+            name=service_name, callback=callback_function, sio=self._sio
         )
 
         server.create_service()
@@ -513,7 +697,7 @@ class Node:
         """
 
         # Initialise the server
-        client = services.ServiceClient(name=service_name, sio=self.sio)
+        client = services.ServiceClient(name=service_name, sio=self._sio)
 
         client.call_service(*args, **kwargs)
         return client

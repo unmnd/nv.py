@@ -17,6 +17,7 @@ import click
 
 import nv.logger
 import nv.node
+import nv.utils
 
 
 class NodeClass:
@@ -29,7 +30,10 @@ node = NodeClass()
 
 @click.group()
 @click.option(
-    "--nv_host", help="Override the host to connect to", default=None, type=str
+    "--nv_host", help="Override the host to connect to.", default=None, type=str
+)
+@click.version_option(
+    version=nv.utils.VERSION, prog_name="nv", message="%(prog)s framework v%(version)s"
 )
 def main(nv_host):
     """
@@ -41,20 +45,28 @@ def main(nv_host):
 
     node.set_node(
         nv.node.Node(
-            f"nv_cli #{uuid.uuid4()}", nv_host=nv_host, log_level=nv.logger.ERROR
+            f"nv_cli #{uuid.uuid4()}",
+            nv_host=nv_host,
+            log_level=nv.logger.ERROR,
+            skip_registration=True,
         )
     )
 
 
 @main.group()
-# @click.argument("command", type=click.Choice(["echo", "list", "pub"]))
 def topic():
+    """
+    Functions related to publishing and subscribing of data over topics.
+    """
     ...
 
 
 @topic.command("echo")
 @click.argument("topic")
 def topic_echo(topic):
+    """
+    Subscribes to a topic and prints all messages received.
+    """
     click.echo(f"Echoing from topic: {topic}")
 
     def echo_callback(message):
