@@ -364,7 +364,7 @@ class Node:
                 "time_modified": time.time(),
                 "version": utils.VERSION,
                 "subscriptions": list(self._subscriptions.keys()),
-                "services": list(self._services.keys()),
+                "services": self._services,
             }
         else:
             return marshal.loads(self._redis_nodes.get(node_name))
@@ -618,7 +618,7 @@ class Node:
         ---
 
         ### Returns:
-            The parameter value.
+            The parameter value if it exists, or `None` if it doesn't.
 
         ---
 
@@ -640,25 +640,19 @@ class Node:
         if not node_name:
             node_name = self.name
 
-        params = {
-            "name": parameter,
-            "node_name": node_name,
-        }
+        # Get the parameter from the parameter server
+        parameter = self._redis_parameters.get(f"{node_name}.{parameter}")
 
-        # Send the request to the parameter server
-        r = requests.get(self.host + "/api/get_parameter", params=params)
+        # Raise an exception if the parameter is not found and fail_if_not_found is True
+        if parameter is None and fail_if_not_found:
+            raise Exception(f"Parameter {parameter} not found")
 
-        # Check if the request was successful
-        if self._check_api_response(r):
-            return r.json().get("parameter_value")
+        # Extract the value from the parameter if it exists
+        if parameter is not None:
+            return marshal.loads(parameter).get("value")
 
-        # If the parameter wasn't found, None or raise an exception
-        if fail_if_not_found:
-            raise Exception(
-                f"Failed to get parameter: {parameter}. Maybe it doesn't exist?"
-            )
-        else:
-            return None
+        # Otherwise return None
+        return None
 
     def set_parameter(
         self, name: str, value, node_name: str = None, description: str = None
@@ -678,7 +672,7 @@ class Node:
         ---
 
         ### Returns:
-            `True` if all parameters were set successfully.
+            `True` if the parameter was set correctly.
 
         ---
 
@@ -705,21 +699,16 @@ class Node:
         if not node_name:
             node_name = self.name
 
-        data = {
-            "node_name": node_name,
-            "name": name,
-            "value": value,
-            "description": description,
-        }
-
-        # Send the request to the parameter server
-        r = requests.post(self.host + "/api/set_parameter", data=data)
-
-        # Check if the request was successful
-        if self._check_api_response(r):
-            return True
-
-        raise Exception(f"Failed to set parameter: {name} to value: {value}")
+        # Set the parameter on the parameter server
+        return self._redis_parameters.set(
+            f"{node_name}.{name}",
+            marshal.dumps(
+                {
+                    "value": value,
+                    "description": description,
+                }
+            ),
+        )
 
     def set_parameters(self, parameters: typing.List[dict]):
         """
@@ -762,8 +751,7 @@ class Node:
             ])
         """
 
-        # Ensure all parameters have a specified node name, adding the current
-        # node for any without
+        # Ensure all parameters have the required keys
         for parameter in parameters:
             if "node_name" not in parameter:
                 parameter["node_name"] = self.name
@@ -771,16 +759,24 @@ class Node:
             if "description" not in parameter:
                 parameter["description"] = None
 
-        # Send the request to the parameter server
-        r = requests.post(
-            self.host + "/api/set_parameters", json={"parameters": parameters}
-        )
+        # Create a pipe to send all updates at once
+        pipe = self._redis_parameters.pipeline()
 
-        # Check if the request was successful
-        if self._check_api_response(r):
-            return True
+        # Set each parameter
+        for parameter in parameters:
+            pipe.set(
+                f"{parameter['node_name']}.{parameter['name']}",
+                marshal.dumps(
+                    {
+                        "value": parameter["value"],
+                        "description": parameter["description"],
+                    }
+                ),
+            )
 
-        raise Exception(f"Failed to set parameters: {parameters}.")
+        # Set the parameters on the parameter server, only returning True if all
+        # parameters were set successfully
+        return pipe.execute()
 
     def set_parameters_from_file(self, filepath):
         """
