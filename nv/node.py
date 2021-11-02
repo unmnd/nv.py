@@ -71,8 +71,8 @@ class Node:
 
         # The subscriptions dictionary is in the form of:
         # {
-        #   topic1: callback1,
-        #   topic2: callback2,
+        #   topic1: [callback1],
+        #   topic2: [callback2, callback3],
         #   ...
         # }
         self.subscriptions = {}
