@@ -37,29 +37,29 @@ class LoopTimer:
             autostart (bool): Whether to start the timer automatically.
             immediate (bool): Whether to call the function immediately after start.
             termination_event (Event): An event to watch for to stop the timer.
+                If supplied, the timer cannot be manually stopped.
             args: The arguments to pass to the function.
             kwargs: The keyword arguments to pass to the function.
         """
-        self._timer = None
+
+        self.stopped = termination_event or Event()
+
+        # Only assign the stop method if a termination event was not supplied
+        if not termination_event:
+            self.stop = self._stop
+
         self.interval = interval
         self.function = function
         self.immediate = immediate
-        self.termination_event = termination_event
         self.args = args
         self.kwargs = kwargs
-        self.is_running = False
 
         if autostart:
             self.start()
 
     def _run(self):
-        self.is_running = False
-        self.start()
-        self.function(*self.args, **self.kwargs)
-
-    def _wait_for_termination_event(self):
-        self.termination_event.wait()
-        self.stop()
+        while not self.stopped.wait(self.interval):
+            self.function(*self.args, **self.kwargs)
 
     def start(self):
         """
@@ -68,21 +68,11 @@ class LoopTimer:
         if self.immediate:
             self.function(*self.args, **self.kwargs)
 
-        if not self.is_running:
-            self._timer = Timer(self.interval, self._run)
-            self._timer.start()
-            self.is_running = True
+        self._run_thread = Thread(target=self._run)
+        self._run_thread.start()
 
-        # Create termination event if not None
-        if self.termination_event is not None:
-            self._wait_for_termination_thread = Thread(
-                target=self._wait_for_termination_event
-            )
-            self._wait_for_termination_thread.start()
-
-    def stop(self):
+    def _stop(self):
         """
         Manually stop the timer.
         """
-        self._timer.cancel()
-        self.is_running = False
+        self.stopped.set()
