@@ -159,6 +159,19 @@ class Node:
 
         self.log.info(f"Node successfully registered!")
 
+    def _deregister_node(self):
+        """
+        Deregister the node with the server.
+        """
+
+        # Delete the node information from the nodes database
+        self._redis_nodes.delete(self.name)
+
+        # Set the node as deregistered
+        self.node_registered = False
+
+        self.log.info(f"Node successfully deregistered!")
+
     def _connect_redis(self, redis_host: str = None, port: int = 6379, db: int = 0):
         """
         Connect the Redis client to the database to allow messaging. It attempts
@@ -223,7 +236,7 @@ class Node:
         Continously monitors the Redis server for updated messages, enabling
         subscription callbacks to trigger.
         """
-        while True:
+        while not self.stopped:
             try:
                 Node._pubsub.get_message()
             except RuntimeError:
@@ -531,7 +544,12 @@ class Node:
         """
         ### Destroy the node.
         """
-        raise NotImplementedError("Destroy node is not yet implemented")
+
+        # Remove the node from the list of nodes
+        self._deregister_node()
+
+        # Stop any timers or services currently running
+        self.stopped = True
 
     def get_services(self):
         """
