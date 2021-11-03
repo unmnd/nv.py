@@ -35,7 +35,9 @@ node = NodeClass()
     "--nv_host", help="Override the host to connect to.", default=None, type=str
 )
 @click.version_option(
-    version=nv.version.__version__, prog_name="nv", message="%(prog)s framework v%(version)s"
+    version=nv.version.__version__,
+    prog_name="nv",
+    message="%(prog)s framework v%(version)s",
 )
 def main(nv_host):
     """
@@ -75,6 +77,7 @@ def topic_echo(topic):
         print(str(message))
 
     node.node.create_subscription(topic, echo_callback)
+    spin_until_keyboard_interrupt()
 
 
 @topic.command("pub")
@@ -83,17 +86,20 @@ def topic_echo(topic):
 @click.option(
     "--rate", default=0, help="Continuously publish the data at a specified rate in hz."
 )
-def topic_echo(topic, msg, rate):
+def topic_pub(topic, msg, rate):
     """
     Publish a message to a topic.
     """
     click.echo(f"Publishing to topic: {topic}")
 
     if rate > 0:
-        while True:
-            node.node.publish(topic, msg)
-            click.echo(f"Published: {msg}")
-            time.sleep(1 / rate)
+        try:
+            while True:
+                node.node.publish(topic, msg)
+                click.echo(f"Published: {msg}")
+                time.sleep(1 / rate)
+        except KeyboardInterrupt:
+            node.node.destroy_node()
     else:
         node.node.publish(topic, msg)
 
@@ -101,6 +107,16 @@ def topic_echo(topic, msg, rate):
 @main.command("param")
 def main_param(self):
     raise NotImplementedError
+
+
+def spin_until_keyboard_interrupt():
+    """
+    Spin until keyboard interrupt.
+    """
+    try:
+        node.node.spin()
+    except KeyboardInterrupt:
+        node.node.destroy_node()
 
 
 if __name__ == "__main__":
