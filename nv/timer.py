@@ -12,7 +12,7 @@ All Rights Reserved
 """
 
 import typing
-from threading import Timer
+from threading import Timer, Event, Thread
 
 OneShotTimer = Timer
 
@@ -24,6 +24,7 @@ class LoopTimer:
         function: typing.Callable,
         autostart: bool = True,
         immediate: bool = False,
+        termination_event: Event = None,
         *args,
         **kwargs
     ):
@@ -35,6 +36,7 @@ class LoopTimer:
             function (callable): The function to call.
             autostart (bool): Whether to start the timer automatically.
             immediate (bool): Whether to call the function immediately after start.
+            termination_event (Event): An event to watch for to stop the timer.
             args: The arguments to pass to the function.
             kwargs: The keyword arguments to pass to the function.
         """
@@ -42,6 +44,7 @@ class LoopTimer:
         self.interval = interval
         self.function = function
         self.immediate = immediate
+        self.termination_event = termination_event
         self.args = args
         self.kwargs = kwargs
         self.is_running = False
@@ -54,6 +57,10 @@ class LoopTimer:
         self.start()
         self.function(*self.args, **self.kwargs)
 
+    def _wait_for_termination_event(self):
+        self.termination_event.wait()
+        self.stop()
+
     def start(self):
         """
         Manually start the timer.
@@ -65,6 +72,13 @@ class LoopTimer:
             self._timer = Timer(self.interval, self._run)
             self._timer.start()
             self.is_running = True
+
+        # Create termination event if not None
+        if self.termination_event is not None:
+            self._wait_for_termination_thread = Thread(
+                target=self._wait_for_termination_event
+            )
+            self._wait_for_termination_thread.start()
 
     def stop(self):
         """

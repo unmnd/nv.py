@@ -24,7 +24,7 @@ import redis
 import serpent
 import yaml
 
-from nv import exceptions, logger, timer, utils, version
+from nv import exceptions, logger, timer, version
 
 
 class Node:
@@ -63,7 +63,7 @@ class Node:
         self.name = name
         self.node_registered = False
         self.skip_registration = skip_registration
-        self.stopped = False
+        self.stopped = threading.Event()
         self._start_time = time.time()
 
         # The subscriptions dictionary is in the form of:
@@ -135,11 +135,6 @@ class Node:
             resetting a 10 second expiry timer.
             """
 
-            # Check if the node has been stopped, if so, stop the timer
-            if self.stopped:
-                self._renew_node_information_timer.stop()
-                return
-
             # Update the node information
             self._redis_nodes.set(
                 self.name,
@@ -152,6 +147,7 @@ class Node:
             interval=5,
             function=_renew_node_information,
             immediate=True,
+            termination_event=self.stopped,
         )
 
         # Set the node as registered
@@ -236,7 +232,7 @@ class Node:
         Continously monitors the Redis server for updated messages, enabling
         subscription callbacks to trigger.
         """
-        while not self.stopped:
+        while not self.stopped.is_set():
             try:
                 Node._pubsub.get_message()
             except RuntimeError:
@@ -329,6 +325,16 @@ class Node:
         # Call the corresponding callback(s)
         for callback in self._subscriptions[topic]:
             callback(message)
+
+    def spin(self):
+        """
+        # Blocking function while the node is active.
+
+        It's not necessary to call this function to run the node! This is only
+        useful if you have no more code to execute, but need something for a
+        try, except KeyboardInterrupt block.
+        """
+        self.stopped.wait()
 
     def get_logger(self, name=None, log_level=logger.INFO):
         """
@@ -542,14 +548,20 @@ class Node:
 
     def destroy_node(self):
         """
-        ### Destroy the node.
+        ### Destroy the node cleanly.
+        Terminating a node without calling this function is not a major issue,
+        however the node information will remain in the network for several
+        seconds, which might cause issues with service calls, or if you want to
+        re-start the node immediately.
         """
+
+        self.log.debug("Node termination requested...")
 
         # Remove the node from the list of nodes
         self._deregister_node()
 
         # Stop any timers or services currently running
-        self.stopped = True
+        self.stopped.set()
 
     def get_services(self):
         """
