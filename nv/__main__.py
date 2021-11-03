@@ -11,6 +11,7 @@ UNMND, Ltd. 2021
 All Rights Reserved
 """
 
+import json
 import time
 import uuid
 
@@ -23,7 +24,7 @@ import nv.version
 
 
 class NodeClass:
-    def set_node(self, node):
+    def set_node(self, node: nv.node.Node):
         self.node = node
 
 
@@ -31,15 +32,13 @@ node = NodeClass()
 
 
 @click.group()
-@click.option(
-    "--nv_host", help="Override the host to connect to.", default=None, type=str
-)
 @click.version_option(
     version=nv.version.__version__,
     prog_name="nv",
     message="%(prog)s framework v%(version)s",
 )
-def main(nv_host):
+@click.pass_context
+def main(ctx):
     """
     Main nv commandline interface.
 
@@ -50,11 +49,13 @@ def main(nv_host):
     node.set_node(
         nv.node.Node(
             f"nv_cli #{uuid.uuid4()}",
-            nv_host=nv_host,
             log_level=nv.logger.ERROR,
             skip_registration=True,
         )
     )
+
+    # Create a callback which terminates the node when the command is complete
+    ctx.call_on_close(node.node.destroy_node)
 
 
 @main.group()
@@ -102,6 +103,40 @@ def topic_pub(topic, msg, rate):
             node.node.destroy_node()
     else:
         node.node.publish(topic, msg)
+
+
+@main.group()
+def nodes():
+    """
+    Functions related to nodes.
+    """
+    ...
+
+
+@nodes.command("list")
+def nodes_list():
+    """
+    List all nodes.
+    """
+    returned_list_of_nodes = node.node.get_nodes_list()
+
+    click.echo(
+        f"Listing nodes [{len(returned_list_of_nodes)}]:\n"
+        + "\n".join(returned_list_of_nodes)
+    )
+
+
+@nodes.command("info")
+@click.argument("node_name")
+def nodes_info(node_name):
+    """
+    Get information about a node.
+    """
+    node_info = node.node.get_node_information(node_name=node_name)
+
+    click.echo(
+        f"Node info for {node_name}:\n{json.dumps(node_info, indent=4, sort_keys=True)}"
+    )
 
 
 @main.command("param")

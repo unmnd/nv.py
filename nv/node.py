@@ -74,6 +74,10 @@ class Node:
         # }
         self._subscriptions = {}
 
+        # The publishers dict tracks each topic which has been published on
+        # in the past, and the unix timestamp of the last publish.
+        self._publishers = {}
+
         # The services dictionary is used to keep track of exposed services, and
         # their unique topic names for calling.
         self._services = {}
@@ -384,6 +388,7 @@ class Node:
                 "time_modified": time.time(),
                 "version": version.__version__,
                 "subscriptions": list(self._subscriptions.keys()),
+                "publishers": self._publishers,
                 "services": self._services,
             }
         else:
@@ -399,9 +404,20 @@ class Node:
             A dictionary containing all nodes on the network.
         """
         return {
-            node: marshal.loads(self._redis_nodes.get(node))
+            node.decode(): marshal.loads(self._redis_nodes.get(node))
             for node in self._redis_nodes.keys()
         }
+
+    def get_nodes_list(self) -> typing.List[str]:
+        """
+        ### Get a list of names of all nodes present in the network.
+
+        ---
+
+        ### Returns:
+            A list containing all nodes on the network.
+        """
+        return [node.decode() for node in self._redis_nodes.keys()]
 
     def get_topic_subscriptions(self, topic: str) -> typing.List[str]:
         """
@@ -540,6 +556,9 @@ class Node:
         ### Returns:
             bool: `True` if the message was successfully published, `False` otherwise.
         """
+
+        # Update the publishers dict
+        self._publishers[topic_name] = time.time()
 
         # Send the message to the Redis pubsub
         return self._redis_topics.publish(
