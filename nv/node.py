@@ -24,7 +24,7 @@ import redis
 import serpent
 import yaml
 
-from nv import exceptions, logger, timer, utils
+from nv import exceptions, logger, timer, utils, version
 
 
 class Node:
@@ -56,7 +56,7 @@ class Node:
         )
 
         self.log.debug(
-            f"Initialising '{name}' using framework version nv {utils.VERSION}"
+            f"Initialising '{name}' using framework version nv {version.__version__}"
         )
 
         # Initialise parameters
@@ -363,7 +363,7 @@ class Node:
             return {
                 "time_registered": self._start_time,
                 "time_modified": time.time(),
-                "version": utils.VERSION,
+                "version": version.__version__,
                 "subscriptions": list(self._subscriptions.keys()),
                 "services": self._services,
             }

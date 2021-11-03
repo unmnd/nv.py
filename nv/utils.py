@@ -12,11 +12,9 @@ All Rights Reserved
 """
 
 import os
-import pkg_resources
 
 import requests
 
-VERSION = pkg_resources.require("nv")[0].version
 MAGIC = "n4vvy"
 CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".nv")
 

@@ -19,6 +19,7 @@ import click
 import nv.logger
 import nv.node
 import nv.utils
+import nv.version
 
 
 class NodeClass:
@@ -34,7 +35,7 @@ node = NodeClass()
     "--nv_host", help="Override the host to connect to.", default=None, type=str
 )
 @click.version_option(
-    version=nv.utils.VERSION, prog_name="nv", message="%(prog)s framework v%(version)s"
+    version=nv.version.__version__, prog_name="nv", message="%(prog)s framework v%(version)s"
 )
 def main(nv_host):
     """
