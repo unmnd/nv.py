@@ -827,6 +827,49 @@ class Node:
         # Otherwise return None
         return None
 
+    def get_parameters(self, node_name: str = None) -> typing.Dict[str, typing.Any]:
+        """
+        ### Get all parameters for a specific node.
+
+        ---
+
+        ### Parameters:
+            - `node_name` (str): Optionally get parameters from a different node.
+                If not specified, uses the current node.
+
+        ---
+
+        ### Returns:
+            A dictionary of parameters.
+
+        ---
+
+        ### Example::
+
+            # Get all parameters for the current node
+            parameters = get_parameters()
+
+            # Get all parameters for the node 'node1'
+            parameters = get_parameters(node_name='node1')
+        """
+
+        # If the node name is not specified, use the current node
+        if not node_name:
+            node_name = self.name
+
+        parameters = {}
+
+        # Get all keys which start with the node name
+        keys = self._redis_parameters.scan_iter(match=f"{node_name}.*")
+
+        # Extract the parameter name from each key
+        for key in keys:
+            parameter = key.decode().split(".", 1)[1]
+            parameters[parameter] = self.get_parameter(parameter, node_name)
+
+        # Return the parameters
+        return parameters
+
     def set_parameter(
         self, name: str, value, node_name: str = None, description: str = None
     ):

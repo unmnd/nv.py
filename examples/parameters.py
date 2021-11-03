@@ -65,6 +65,9 @@ class ParameterExamples(Node):
             f"Parameter from `config.json`: {self.get_parameter('param1', node_name='node1')}"
         )
 
+        # You can get all parameters for a node with `get_parameters`
+        self.log.info(f"All parameters for this node: {self.get_parameters()}")
+
 
 def main():
     node = ParameterExamples()

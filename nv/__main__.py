@@ -61,7 +61,7 @@ def main(ctx):
 @main.group()
 def topic():
     """
-    Functions related to publishing and subscribing of data over topics.
+    Functions related to topics.
     """
     ...
 
@@ -84,7 +84,7 @@ def topic_echo(topic):
 @topic.command("list")
 def topic_list():
     """
-    List all topics.
+    List all topics, and how recently they were last published to.
     """
 
     # Get topics
@@ -156,9 +156,24 @@ def nodes_info(node_name):
     )
 
 
-@main.command("param")
-def main_param(self):
-    raise NotImplementedError
+@main.group("param")
+def param():
+    """
+    Functions related to parameters
+    """
+    ...
+
+
+@param.command("list")
+@click.argument("node_name")
+def param_list(node_name):
+    """
+    List all parameters, and their values, for a node.
+    """
+    click.echo(
+        f"Listing parameters for node {node_name}:\n"
+        + json.dumps(node.node.get_parameters(node_name=node_name), indent=4)
+    )
 
 
 def spin_until_keyboard_interrupt():
