@@ -17,4 +17,5 @@ setup(
         "serpent==1.40",
     ],
     python_requires=">=3.8",
+    entry_points={"console_scripts": ["nv=nv.__main__:main"]},
 )
