@@ -81,6 +81,23 @@ def topic_echo(topic):
     spin_until_keyboard_interrupt()
 
 
+@topic.command("list")
+def topic_list():
+    """
+    List all topics.
+    """
+
+    # Get topics
+    topics = node.node.get_topics()
+
+    # Format their timestamps nicely
+    for topic in topics:
+        duration, prefix, suffix = node.node.format_duration(time.time(), topics[topic])
+        topics[topic] = f"Last message {prefix} {duration} {suffix}"
+
+    click.echo(json.dumps(topics, indent=4))
+
+
 @topic.command("pub")
 @click.argument("topic")
 @click.argument("msg")
