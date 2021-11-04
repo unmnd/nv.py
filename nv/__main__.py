@@ -211,6 +211,38 @@ def param_list(node_name):
     )
 
 
+@param.command("set")
+@click.argument("node_name", type=str)
+@click.argument("param_name", type=str)
+@click.argument("param_value", type=str)
+@click.option("--description", type=str)
+def param_set(node_name, param_name, param_value, description):
+    """
+    Set a parameter for a node.
+    """
+    if node.set_parameter(
+        node_name=node_name, name=param_name, value=param_value, description=description
+    ):
+        click.echo(f"Set parameter {param_name} to '{param_value}'")
+    else:
+        click.echo(f"Failed to set parameter {param_name} to {param_value}")
+
+
+@param.command("get")
+@click.argument("node_name", type=str)
+@click.argument("param_name", type=str)
+def param_get(node_name, param_name):
+    """
+    Get a parameter for a node.
+    """
+    click.echo(
+        f"Getting parameter {param_name} for node {node_name}:\n"
+        + json.dumps(
+            node.get_parameter(node_name=node_name, parameter=param_name), indent=4
+        )
+    )
+
+
 def spin_until_keyboard_interrupt():
     """
     Spin until keyboard interrupt.
