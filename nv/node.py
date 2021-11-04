@@ -452,6 +452,11 @@ class Node:
         # already exists, the most recent publish time is used.
         for node in nodes.values():
             for topic, last_published in node.get("publishers").items():
+
+                # Remove service topics
+                if topic.startswith("srv://"):
+                    continue
+
                 if topic not in topics:
                     topics[topic] = last_published
                 else:
@@ -701,7 +706,7 @@ class Node:
             self.publish(response_topic, result)
 
         # Generate a unique ID for the service
-        service_id = str(uuid.uuid4())
+        service_id = "srv://" + str(uuid.uuid4())
 
         # Register a message handler for the service
         self.create_subscription(service_id, handle_service_callback)
@@ -786,7 +791,7 @@ class Node:
         service_id = services[service_name]
 
         # Generate a unique ID for the response topic
-        response_topic = str(uuid.uuid4())
+        response_topic = "srv://" + str(uuid.uuid4())
 
         # Create a message to send to the service
         message = {
