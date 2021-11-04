@@ -650,6 +650,14 @@ class Node:
         """
         ### Create a service.
 
+        A service is a function which can be called by other nodes. It can
+        accept any number of args and kwargs, and can return any Python
+        datatype.
+
+        If there is an exception during the execution of the service, the caller
+        will receive `None` as the result. Be careful if your service returns
+        `None` under normal operation.
+
         ---
 
         ### Parameters:
@@ -682,7 +690,12 @@ class Node:
             kwargs = message.get("kwargs", {})
 
             # Call the service
-            result = callback_function(*args, **kwargs)
+            try:
+                result = callback_function(*args, **kwargs)
+            except Exception as e:
+                self.log.error(f"Error calling service '{service_name}'", exc_info=e)
+                self.publish(response_topic, None)
+                return
 
             # Publish the result on the response topic
             self.publish(response_topic, result)
