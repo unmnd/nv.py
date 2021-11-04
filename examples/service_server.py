@@ -23,6 +23,7 @@ class OddEvenCheckServer(Node):
 def main():
     node = OddEvenCheckServer()
     node.log.debug("Odd Even Check server running")
+    node.spin_until_keyboard_interrupt()
 
 
 if __name__ == "__main__":

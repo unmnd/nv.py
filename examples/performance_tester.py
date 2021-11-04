@@ -79,6 +79,7 @@ class PerformanceTester(Node):
 
 def main():
     node = PerformanceTester()
+    node.spin_until_keyboard_interrupt()
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 from nv.node import Node
+import nv.exceptions
 
 
 class OddEvenCheckClient(Node):
@@ -11,7 +12,12 @@ class OddEvenCheckClient(Node):
         # The service name is the first argument, and any number of args or
         # kwargs can be passed afterwards. Ensure the arguments match what is
         # expected by the service server!
-        self.future = self.call_service("odd_even_check", number=5)
+        try:
+            self.future = self.call_service("odd_even_check", number=5)
+        except nv.exceptions.ServiceNotFoundException:
+            self.log.error(f"Service not found: odd_even_check")
+            self.destroy_node()
+            exit()
 
         # Wait until a response has been received
         self.future.wait(timeout=5)
@@ -22,6 +28,8 @@ class OddEvenCheckClient(Node):
 
 def main():
     node = OddEvenCheckClient()
+
+    node.spin_until_keyboard_interrupt()
 
 
 if __name__ == "__main__":

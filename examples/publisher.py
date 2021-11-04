@@ -28,6 +28,7 @@ class Publisher(Node):
 def main():
     node = Publisher()
     node.log.debug("Publisher node is now running")
+    node.spin_until_keyboard_interrupt()
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ class Subscriber(Node):
 def main():
     node = Subscriber()
     node.log.debug("Waiting for data to be published over topic")
+    node.spin_until_keyboard_interrupt()
 
 
 if __name__ == "__main__":

@@ -332,13 +332,27 @@ class Node:
 
     def spin(self):
         """
-        # Blocking function while the node is active.
+        ### Blocking function while the node is active.
 
         It's not necessary to call this function to run the node! This is only
         useful if you have no more code to execute, but need something for a
-        try, except KeyboardInterrupt block.
+        try, except block.
+
+        If you are waiting for a keyboard interrupt, use
+        `spin_until_keyboard_interrupt` instead!
         """
         self.stopped.wait()
+
+    def spin_until_keyboard_interrupt(self):
+        """
+        ### Blocking function until the user presses Ctrl+C.
+        """
+        try:
+            self.spin()
+        except KeyboardInterrupt:
+            self.log.info("Received KeyboardInterrupt, exiting...")
+        finally:
+            self.destroy_node()
 
     def get_logger(self, name=None, log_level=logger.INFO):
         """
@@ -703,6 +717,11 @@ class Node:
                 - `client.get_response()`: Get the response.
         ---
 
+        ### Raises:
+            - `nv.exceptions.ServiceNotFoundException`: If the service is not registered.
+
+        ---
+
         ### Example::
 
             # Call the service "test"
@@ -746,7 +765,9 @@ class Node:
 
         # Check the service exists
         if service_name not in services:
-            raise ValueError(f"Service '{service_name}' does not exist")
+            raise exceptions.ServiceNotFoundException(
+                f"Service '{service_name}' does not exist"
+            )
 
         # Get the service ID
         service_id = services[service_name]
