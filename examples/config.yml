@@ -6,6 +6,8 @@ node1:
         subparam1: value1
         subparam2: value2
 
+    subparam.using.dot.notation: 12345
+
 node2:
     param3: value3
     param4: value4

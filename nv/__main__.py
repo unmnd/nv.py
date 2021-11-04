@@ -259,6 +259,17 @@ def param_describe(node_name, param_name):
     )
 
 
+@param.command("dump")
+@click.argument("node_name", type=str)
+def param_dump(node_name):
+    """
+    Dump all parameters for a node in `json` format.
+    """
+    click.echo(
+        json.dumps({node_name: node.get_parameters(node_name=node_name)}, indent=4)
+    )
+
+
 def spin_until_keyboard_interrupt():
     """
     Spin until keyboard interrupt.
