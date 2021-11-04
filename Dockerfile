@@ -22,6 +22,9 @@ FROM python:3-alpine
 
 WORKDIR /opt/nv
 
+# Copy examples
+COPY examples examples
+
 # Copy files needed to install requirements only
 COPY setup.py setup.py
 COPY nv/version.py nv/version.py
@@ -33,5 +36,5 @@ RUN python3 setup.py egg_info && \
     rm -rf *.egg-info
 
 # Then copy the rest of the nv framework and install
-COPY . .
-RUN pip3 install .
+COPY nv nv
+RUN pip3 install . && rm -rf nv setup.py
