@@ -37,17 +37,12 @@ class LoopTimer:
             autostart (bool): Whether to start the timer automatically.
             immediate (bool): Whether to call the function immediately after start.
             termination_event (Event): An event to watch for to stop the timer.
-                If supplied, the timer cannot be manually stopped.
             args: The arguments to pass to the function.
             kwargs: The keyword arguments to pass to the function.
         """
 
-        self.stopped = termination_event or Event()
-
-        # Only assign the stop method if a termination event was not supplied
-        if not termination_event:
-            self.stop = self._stop
-
+        self.stopped = Event()
+        self._termination_event = termination_event or Event()
         self.interval = interval
         self.function = function
         self.immediate = immediate
@@ -58,7 +53,10 @@ class LoopTimer:
             self.start()
 
     def _run(self):
-        while not self.stopped.wait(self.interval):
+        while not (
+            self.stopped.wait(self.interval)
+            or self._termination_event.wait(self.interval)
+        ):
             self.function(*self.args, **self.kwargs)
 
     def start(self):
@@ -71,7 +69,7 @@ class LoopTimer:
         self._run_thread = Thread(target=self._run)
         self._run_thread.start()
 
-    def _stop(self):
+    def stop(self):
         """
         Manually stop the timer.
         """
