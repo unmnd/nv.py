@@ -22,13 +22,11 @@ import nv.node
 import nv.utils
 import nv.version
 
-
-class NodeClass:
-    def set_node(self, node: nv.node.Node):
-        self.node = node
-
-
-node = NodeClass()
+node = nv.node.Node(
+    f"nv_cli #{uuid.uuid4()}",
+    log_level=nv.logger.ERROR,
+    skip_registration=True,
+)
 
 
 @click.group()
@@ -46,16 +44,8 @@ def main(ctx):
     parameters, and more.
     """
 
-    node.set_node(
-        nv.node.Node(
-            f"nv_cli #{uuid.uuid4()}",
-            log_level=nv.logger.ERROR,
-            skip_registration=True,
-        )
-    )
-
     # Create a callback which terminates the node when the command is complete
-    ctx.call_on_close(node.node.destroy_node)
+    ctx.call_on_close(node.destroy_node)
 
 
 @main.group()
@@ -67,7 +57,7 @@ def topic():
 
 
 @topic.command("echo")
-@click.argument("topic")
+@click.argument("topic", type=click.Choice(node.get_topics().keys()))
 def topic_echo(topic):
     """
     Subscribes to a topic and prints all messages received.
@@ -77,7 +67,7 @@ def topic_echo(topic):
     def echo_callback(message):
         print(str(message))
 
-    node.node.create_subscription(topic, echo_callback)
+    node.create_subscription(topic, echo_callback)
     spin_until_keyboard_interrupt()
 
 
@@ -88,18 +78,18 @@ def topic_list():
     """
 
     # Get topics
-    topics = node.node.get_topics()
+    topics = node.get_topics()
 
     # Format their timestamps nicely
     for topic in topics:
-        duration, prefix, suffix = node.node.format_duration(time.time(), topics[topic])
+        duration, prefix, suffix = node.format_duration(time.time(), topics[topic])
         topics[topic] = f"Last message {prefix} {duration} {suffix}"
 
     click.echo(json.dumps(topics, indent=4))
 
 
 @topic.command("pub")
-@click.argument("topic")
+@click.argument("topic", type=str)
 @click.argument("msg")
 @click.option(
     "--rate", default=0, help="Continuously publish the data at a specified rate in hz."
@@ -113,13 +103,46 @@ def topic_pub(topic, msg, rate):
     if rate > 0:
         try:
             while True:
-                node.node.publish(topic, msg)
+                node.publish(topic, msg)
                 click.echo(f"Published: {msg}")
                 time.sleep(1 / rate)
         except KeyboardInterrupt:
-            node.node.destroy_node()
+            node.destroy_node()
     else:
-        node.node.publish(topic, msg)
+        node.publish(topic, msg)
+
+
+@topic.command("hz")
+@click.argument("topic", type=click.Choice(node.get_topics().keys()))
+def topic_hz(topic):
+    """
+    Measure the rate at which a topic is published.
+    """
+    click.echo(f"Measuring rate of: {topic}")
+
+    class Rate:
+        def __init__(self):
+            self.count = 0
+            self.start = None
+
+        def __call__(self, message):
+            # If this is the first message, set the start time
+            if self.start is None:
+                self.start = time.time()
+                return
+
+            self.count += 1
+
+            current_rate = self.count / (time.time() - self.start)
+            click.echo(
+                f"{round(current_rate, 1)} hz ({self.count} {'messages' if self.count > 1 else 'message'})\r",
+                nl=False,
+            )
+
+    rate_callback = Rate()
+    node.create_subscription(topic, rate_callback)
+
+    spin_until_keyboard_interrupt()
 
 
 @main.group()
@@ -135,7 +158,7 @@ def nodes_list():
     """
     List all nodes.
     """
-    returned_list_of_nodes = node.node.get_nodes_list()
+    returned_list_of_nodes = node.get_nodes_list()
 
     click.echo(
         f"Listing nodes [{len(returned_list_of_nodes)}]:\n"
@@ -144,12 +167,12 @@ def nodes_list():
 
 
 @nodes.command("info")
-@click.argument("node_name")
+@click.argument("node_name", type=click.Choice(node.get_nodes_list()))
 def nodes_info(node_name):
     """
     Get information about a node.
     """
-    node_info = node.node.get_node_information(node_name=node_name)
+    node_info = node.get_node_information(node_name=node_name)
 
     click.echo(
         f"Node info for {node_name}:\n{json.dumps(node_info, indent=4, sort_keys=True)}"
@@ -165,14 +188,14 @@ def param():
 
 
 @param.command("list")
-@click.argument("node_name")
+@click.argument("node_name", type=click.Choice(node.get_nodes_list()))
 def param_list(node_name):
     """
     List all parameters, and their values, for a node.
     """
     click.echo(
         f"Listing parameters for node {node_name}:\n"
-        + json.dumps(node.node.get_parameters(node_name=node_name), indent=4)
+        + json.dumps(node.get_parameters(node_name=node_name), indent=4)
     )
 
 
@@ -181,9 +204,9 @@ def spin_until_keyboard_interrupt():
     Spin until keyboard interrupt.
     """
     try:
-        node.node.spin()
+        node.spin()
     except KeyboardInterrupt:
-        node.node.destroy_node()
+        node.destroy_node()
 
 
 if __name__ == "__main__":
