@@ -233,12 +233,28 @@ def param_set(node_name, param_name, param_value, description):
 @click.argument("param_name", type=str)
 def param_get(node_name, param_name):
     """
-    Get a parameter for a node.
+    Get a parameter value.
     """
     click.echo(
         f"Getting parameter {param_name} for node {node_name}:\n"
         + json.dumps(
             node.get_parameter(node_name=node_name, parameter=param_name), indent=4
+        )
+    )
+
+
+@param.command("describe")
+@click.argument("node_name", type=str)
+@click.argument("param_name", type=str)
+def param_describe(node_name, param_name):
+    """
+    Get a parameter description.
+    """
+    click.echo(
+        f"Getting description for parameter {param_name} for node {node_name}:\n"
+        + json.dumps(
+            node.get_parameter_description(node_name=node_name, parameter=param_name),
+            indent=4,
         )
     )
 

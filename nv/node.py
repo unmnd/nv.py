@@ -774,7 +774,7 @@ class Node:
         return client
 
     def get_parameter(
-        self, parameter: str, node_name: str = None, fail_if_not_found: bool = False
+        self, name: str, node_name: str = None, fail_if_not_found: bool = False
     ):
         """
         ### Get a parameter value from the parameter server.
@@ -814,7 +814,7 @@ class Node:
             node_name = self.name
 
         # Get the parameter from the parameter server
-        parameter = self._redis_parameters.get(f"{node_name}.{parameter}")
+        parameter = self._redis_parameters.get(f"{node_name}.{name}")
 
         # Raise an exception if the parameter is not found and fail_if_not_found is True
         if parameter is None and fail_if_not_found:
@@ -869,6 +869,47 @@ class Node:
 
         # Return the parameters
         return parameters
+
+    def get_parameter_description(self, name: str, node_name: str = None):
+        """
+        ### Get a parameter description from the parameter server.
+
+        ---
+
+        ### Parameters:
+            - `parameter` (str): The parameter name to get.
+            - `node_name` (str): Optionally get parameters from a different node.
+                If not specified, uses the current node.
+
+        ---
+
+        ### Returns:
+            The parameter description if it exists, or `None` if it doesn't.
+
+        ---
+
+        ### Example::
+
+            # Get the parameter 'foo' from the current node
+            foo = get_parameter_description('foo')
+
+            # Get the parameter 'foo' from the node 'node1'
+            foo = get_parameter_description('foo', node_name='node1')
+        """
+
+        # If the node name is not specified, use the current node
+        if not node_name:
+            node_name = self.name
+
+        # Get the parameter from the parameter server
+        parameter = self._redis_parameters.get(f"{node_name}.{name}")
+
+        # Extract the value from the parameter if it exists
+        if parameter is not None:
+            return marshal.loads(parameter).get("description")
+
+        # Otherwise return None
+        return None
 
     def set_parameter(
         self, name: str, value, node_name: str = None, description: str = None
