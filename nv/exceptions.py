@@ -18,3 +18,6 @@ class HostNotFoundException(Exception):
 
 class DuplicateNodeNameException(Exception):
     ...
+
+class ServiceNotFoundException(Exception):
+    ...
