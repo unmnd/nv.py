@@ -42,22 +42,34 @@ class LoopTimer:
         """
 
         self.stopped = Event()
-        self._termination_event = termination_event or Event()
+        self._termination_event = termination_event
         self.interval = interval
         self.function = function
         self.immediate = immediate
         self.args = args
         self.kwargs = kwargs
 
+        # If the termination event exists, we want to 'attach' it to the
+        # self.stopped event. This is so that a termination event will
+        # immediately trigger the self.stopped event, and terminate the timer.
+        if termination_event:
+            self._termination_thread = Thread(target=self._termination_event_checker)
+            self._termination_thread.start()
+
         if autostart:
             self.start()
 
     def _run(self):
-        while not (
-            self.stopped.wait(self.interval)
-            or self._termination_event.wait(self.interval)
-        ):
+        while not self.stopped.wait(self.interval):
             self.function(*self.args, **self.kwargs)
+
+    def _termination_event_checker(self):
+        """
+        Couple the termination event to the stop method, so that as soon as the
+        termination event is set, the timer is stopped.
+        """
+        self._termination_event.wait()
+        self.stop()
 
     def start(self):
         """
