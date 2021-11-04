@@ -13,6 +13,7 @@ All Rights Reserved
 
 import json
 import time
+from typing import Optional
 import uuid
 
 import click
@@ -194,7 +195,7 @@ def nodes_info(node_name):
 @main.group("param")
 def param():
     """
-    Functions related to parameters
+    Functions related to parameters.
     """
     ...
 
@@ -268,6 +269,75 @@ def param_dump(node_name):
     click.echo(
         json.dumps({node_name: node.get_parameters(node_name=node_name)}, indent=4)
     )
+
+
+@main.group("service")
+def service():
+    """
+    Functions related to services.
+    """
+    ...
+
+
+@service.command("list")
+def service_list():
+    """
+    List all services.
+    """
+    click.echo(
+        f"Listing services:\n" + json.dumps(list(node.get_services().keys()), indent=4)
+    )
+
+
+@service.command("call")
+@click.argument("service_name", type=click.Choice(node.get_services().keys()))
+@click.option(
+    "--arg",
+    "-a",
+    multiple=True,
+    type=click.UNPROCESSED,
+    required=False,
+)
+@click.option(
+    "--kwarg",
+    "-k",
+    multiple=True,
+    type=(str, click.UNPROCESSED),
+    required=False,
+)
+def service_call(service_name, arg, kwarg):
+    """
+    Call a service.
+    """
+
+    if kwarg is None:
+        kwarg = {}
+    else:
+        kwarg = {k: v for k, v in kwarg}
+
+    # Convert to Python datatypes
+    kwargs = {}
+    for k, v in kwarg.items():
+        try:
+            kwargs[k] = eval(v)
+        except (SyntaxError, NameError):
+            kwargs[k] = v
+
+    args = []
+    for a in arg:
+        try:
+            args.append(eval(a))
+        except (SyntaxError, NameError):
+            args.append(a)
+
+    click.echo(f"Calling service {service_name} with args: {args} and kwargs: {kwargs}")
+    service_result = node.call_service(service_name, *args, **kwargs)
+
+    click.echo("Waiting for response...")
+
+    service_result.wait()
+
+    click.echo(f"Service result: {service_result.get_response()}")
 
 
 def spin_until_keyboard_interrupt():
