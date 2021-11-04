@@ -145,6 +145,18 @@ def topic_hz(topic):
     spin_until_keyboard_interrupt()
 
 
+@topic.command("subs")
+@click.argument("topic", type=click.Choice(node.get_topics().keys()))
+def topic_subs(topic):
+    """
+    List all subscribers to a topic.
+    """
+    click.echo(f"Subscribers to topic: {topic}")
+
+    subscribers = node.get_topic_subscriptions(topic)
+    click.echo(json.dumps(subscribers, indent=4))
+
+
 @main.group()
 def nodes():
     """
