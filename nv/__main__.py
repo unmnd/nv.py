@@ -30,11 +30,29 @@ node = nv.node.Node(
 )
 
 
-@click.group()
-@click.version_option(
-    version=nv.version.__version__,
-    prog_name="nv",
-    message="%(prog)s framework v%(version)s",
+def print_version(ctx, param, value):
+    """
+    Custom version printer which destroys the node after completion.
+    """
+    if not value or ctx.resilient_parsing:
+        return
+    node.destroy_node()
+    click.echo(f"nv framework v{nv.version.__version__}")
+    ctx.exit()
+
+
+class CustomGroup(click.Group):
+    def format_help(self, ctx, formatter) -> None:
+        """
+        Custom help formatter which destroys the node after completion.
+        """
+        node.destroy_node()
+        return super().format_help(ctx, formatter)
+
+
+@click.group(cls=CustomGroup)
+@click.option(
+    "--version", is_flag=True, callback=print_version, expose_value=False, is_eager=True
 )
 @click.pass_context
 def main(ctx):
