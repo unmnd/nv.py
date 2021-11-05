@@ -242,13 +242,16 @@ class Node:
         """
         while not self.stopped.is_set():
             try:
-                Node._pubsub.get_message()
+                # The timeout changes the way this function works.
+                # Normally, the function will not block. Adding a timeout will
+                # block for up to that time. If no messages are received, the
+                # function will return None. A larger timeout is less CPU
+                # intensive, but means node termination will be delayed.
+                Node._pubsub.get_message(ignore_subscribe_messages=True, timeout=1)
             except RuntimeError:
                 # If there are no subscriptions, an error is thrown. This is
                 # fine; when a subscription is added the errors will stop.
                 continue
-
-            time.sleep(0.001)
 
     def _decode_pubsub_message(self, message):
         """
