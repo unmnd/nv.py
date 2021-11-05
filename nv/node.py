@@ -910,15 +910,19 @@ class Node:
         # Otherwise return None
         return None
 
-    def get_parameters(self, node_name: str = None) -> typing.Dict[str, typing.Any]:
+    def get_parameters(
+        self, node_name: str = None, match: str = "*"
+    ) -> typing.Dict[str, typing.Any]:
         """
-        ### Get all parameters for a specific node.
+        ### Get all parameters for a specific node, matching a pattern.
 
         ---
 
         ### Parameters:
             - `node_name` (str): Optionally get parameters from a different node.
                 If not specified, uses the current node.
+            - `match` (str): The pattern to match. Defaults to '*', which returns
+                every parameter for that node.
 
         ---
 
@@ -934,6 +938,9 @@ class Node:
 
             # Get all parameters for the node 'node1'
             parameters = get_parameters(node_name='node1')
+
+            # Get all parameters for the node 'node1' matching 'foo*'
+            parameters = get_parameters(node_name='node1', match='foo*')
         """
 
         # If the node name is not specified, use the current node
@@ -943,7 +950,7 @@ class Node:
         parameters = {}
 
         # Get all keys which start with the node name
-        keys = self._redis_parameters.scan_iter(match=f"{node_name}.*")
+        keys = self._redis_parameters.scan_iter(match=f"{node_name}.{match}")
 
         # Extract the parameter name from each key
         for key in keys:

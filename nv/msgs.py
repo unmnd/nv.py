@@ -140,8 +140,9 @@ class Msg:
             - "button_left_bumper": left bumper or L1
             - "button_right_bumper": right bumper or R1
 
-            - "button_back": back or select button
+            - "button_select": select button
             - "button_start": start button
+            - "button_home": xbox or ps button
 
             - "button_left_stick": left stick button
             - "button_right_stick": right stick button
