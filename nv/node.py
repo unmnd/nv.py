@@ -132,7 +132,6 @@ class Node:
         # Start the pubsub loop for topics in a separate thread.
         Node._pubsub = self._redis_topics.pubsub()
         Node._pubsub_thread = threading.Thread(target=self._pubsub_loop)
-        Node._pubsub_thread.start()
 
     def _register_node(self):
         """
@@ -153,11 +152,10 @@ class Node:
             )
 
         # Create a timer which renews the node information every 5 seconds
-        self._renew_node_information_timer = timer.LoopTimer(
+        self._renew_node_information_timer = self.create_loop_timer(
             interval=5,
             function=_renew_node_information,
             immediate=True,
-            termination_event=self.stopped,
         )
 
         # Set the node as registered
@@ -353,17 +351,6 @@ class Node:
         """
         self.stopped.wait()
 
-    def spin_until_keyboard_interrupt(self):
-        """
-        ### Blocking function until the user presses Ctrl+C.
-        """
-        try:
-            self.spin()
-        except KeyboardInterrupt:
-            self.log.info("Received KeyboardInterrupt, exiting...")
-        finally:
-            self.destroy_node()
-
     def get_logger(self, name=None, log_level=logger.INFO):
         """
         ### Get a logger for the nv framework.
@@ -536,6 +523,10 @@ class Node:
             create_subscription("test", callback_function)
         """
 
+        # Start the pubsub loop if it hasn't already been started
+        if not Node._pubsub_thread.is_alive():
+            Node._pubsub_thread.start()
+
         # The `Node` object is used rather than `self` when accessing the pubsub
         # object, which allows the separate thread running the pubsub loop
         # (`_pubsub_loop`) to access subscriptions created at any point, after
@@ -636,6 +627,46 @@ class Node:
 
         # Stop any timers or services currently running
         self.stopped.set()
+
+    def create_loop_timer(
+        self,
+        interval: int,
+        function: typing.Callable,
+        autostart: bool = True,
+        immediate: bool = False,
+        *args,
+        **kwargs,
+    ):
+        """
+        ### Create a looping timer in a new thread.
+
+        Differs from using `nv.timer.LoopTimer` directly as it automatically
+        terminates the timer when the node is destroyed.
+
+        Additional args and kwargs are passed to the function.
+
+        ---
+
+        ### Parameters:
+            - `interval` (int): The interval in seconds between calls to the
+                function.
+            - `function` (function): The function to call.
+            - `autostart` (bool): Whether to start the timer automatically.
+            - `immediate` (bool): Whether to call the function immediately after start.
+
+        """
+
+        loop_timer = timer.LoopTimer(
+            interval=interval,
+            function=function,
+            autostart=autostart,
+            immediate=immediate,
+            termination_event=self.stopped,
+            *args,
+            **kwargs,
+        )
+
+        return loop_timer
 
     def get_services(self):
         """

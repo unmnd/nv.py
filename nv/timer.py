@@ -29,16 +29,18 @@ class LoopTimer:
         **kwargs
     ):
         """
-        Call a function repeatedly every 'interval' seconds.
+        ### Call a function repeatedly every 'interval' seconds.
 
-        Parameters:
-            interval (int): The interval in seconds to call the function.
-            function (callable): The function to call.
-            autostart (bool): Whether to start the timer automatically.
-            immediate (bool): Whether to call the function immediately after start.
-            termination_event (Event): An event to watch for to stop the timer.
-            args: The arguments to pass to the function.
-            kwargs: The keyword arguments to pass to the function.
+        ---
+
+        ### Parameters:
+            - interval (int): The interval in seconds to call the function.
+            - function (callable): The function to call.
+            - autostart (bool): Whether to start the timer automatically.
+            - immediate (bool): Whether to call the function immediately after start.
+            - termination_event (Event): An event to watch for to stop the timer.
+            - args: The arguments to pass to the function.
+            - kwargs: The keyword arguments to pass to the function.
         """
 
         self.stopped = Event()
