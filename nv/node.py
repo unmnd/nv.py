@@ -15,6 +15,8 @@ All Rights Reserved
 
 import json
 import marshal
+import signal
+import sys
 import threading
 import time
 import typing
@@ -49,6 +51,10 @@ class Node:
                 This should not be used for normal nodes, but is useful for
                 commandline access.
         """
+
+        # Bind callbacks to gracefully exit the node on signal
+        signal.signal(signal.SIGINT, self._sigterm_handler)
+        signal.signal(signal.SIGTERM, self._sigterm_handler)
 
         # Initialise logger
         self.log = logger.generate_log(
@@ -330,16 +336,20 @@ class Node:
         for callback in self._subscriptions[topic]:
             callback(message)
 
+    def _sigterm_handler(self, _signo, _stack_frame):
+        """
+        Handle termination signals to gracefully stop the node.
+        """
+        self.log.info("Received program termination signal; exiting...")
+        self.destroy_node()
+        sys.exit(0)
+
     def spin(self):
         """
         ### Blocking function while the node is active.
 
-        It's not necessary to call this function to run the node! This is only
-        useful if you have no more code to execute, but need something for a
-        try, except block.
-
-        If you are waiting for a keyboard interrupt, use
-        `spin_until_keyboard_interrupt` instead!
+        It's not necessary to call this function to run the node! This is just
+        used as a blocker if there is no other code to run.
         """
         self.stopped.wait()
 
