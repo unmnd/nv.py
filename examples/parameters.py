@@ -71,7 +71,7 @@ class ParameterExamples(Node):
 
 def main():
     node = ParameterExamples()
-    node.spin_until_keyboard_interrupt()
+    node.spin()
 
 
 if __name__ == "__main__":

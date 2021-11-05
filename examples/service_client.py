@@ -29,7 +29,7 @@ class OddEvenCheckClient(Node):
 def main():
     node = OddEvenCheckClient()
 
-    node.spin_until_keyboard_interrupt()
+    node.spin()
 
 
 if __name__ == "__main__":

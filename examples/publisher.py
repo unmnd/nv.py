@@ -1,14 +1,14 @@
 from nv.node import Node
-from nv.timer import LoopTimer
 
 
 class Publisher(Node):
     def __init__(self):
         super().__init__("publisher_node")
 
-        # To continuously publish at a defined rate, we can use the timer
-        # provided by nv.timer.LoopTimer.
-        self.timer = LoopTimer(interval=1.0, function=self.publish_hello_world)
+        # To continuously publish at a defined rate, we can use a loop timer.
+        self.timer = self.create_loop_timer(
+            interval=1.0, function=self.publish_hello_world
+        )
 
         # Alternatively, we can just publish on any topic, at any time.
         # No limitations!
@@ -28,7 +28,7 @@ class Publisher(Node):
 def main():
     node = Publisher()
     node.log.debug("Publisher node is now running")
-    node.spin_until_keyboard_interrupt()
+    node.spin()
 
 
 if __name__ == "__main__":
