@@ -13,7 +13,6 @@ All Rights Reserved
 
 import json
 import time
-from typing import Optional
 import uuid
 
 import click
@@ -87,7 +86,7 @@ def topic_echo(topic):
         print(str(message))
 
     node.create_subscription(topic, echo_callback)
-    spin_until_keyboard_interrupt()
+    node.spin()
 
 
 @topic.command("list")
@@ -161,7 +160,7 @@ def topic_hz(topic):
     rate_callback = Rate()
     node.create_subscription(topic, rate_callback)
 
-    spin_until_keyboard_interrupt()
+    node.spin()
 
 
 @topic.command("subs")
@@ -356,16 +355,6 @@ def service_call(service_name, arg, kwarg):
     service_result.wait()
 
     click.echo(f"Service result: {service_result.get_response()}")
-
-
-def spin_until_keyboard_interrupt():
-    """
-    Spin until keyboard interrupt.
-    """
-    try:
-        node.spin()
-    except KeyboardInterrupt:
-        node.destroy_node()
 
 
 if __name__ == "__main__":
