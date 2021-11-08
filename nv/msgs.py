@@ -108,12 +108,11 @@ class Msg:
         }
 
     @staticmethod
-    def joy(
-        axes: dict = {},
-        buttons: dict = {},
-    ) -> dict:
+    def joy(**kwargs) -> dict:
         """
         A joystick message.
+
+        Note: This method is for docstring reference only, and should not be used.
 
         Axes should be a dict of floats, and buttons should be a dict of ints. Not
         all the fields need to be populated, but fields should not be populated for
@@ -152,4 +151,7 @@ class Msg:
             - "button_dpad_left": dpad left button
             - "button_dpad_right": dpad right button
         """
-        return {"axes": axes, "buttons": buttons}
+
+        raise NotImplementedError(
+            "There is no reason to use this method directly, instead reference the docstring and construct your joy message manually."
+        )
