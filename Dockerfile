@@ -21,6 +21,7 @@
 FROM python:3-alpine
 
 WORKDIR /opt/nv
+ENV PYTHONPATH /opt/nv/nodes
 
 # Copy examples
 COPY examples examples
