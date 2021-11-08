@@ -14,7 +14,7 @@ All Rights Reserved
 """
 
 import json
-import marshal
+import pickle
 import signal
 import sys
 import threading
@@ -147,7 +147,7 @@ class Node:
             # Update the node information
             self._redis_nodes.set(
                 self.name,
-                marshal.dumps(self.get_node_information()),
+                pickle.dumps(self.get_node_information()),
                 ex=10,
             )
 
@@ -257,7 +257,7 @@ class Node:
         """
         # Decode a message received by a callback to the Redis pubsub.
 
-        By default it uses `marshal` for speed, but if this fails it will fall
+        By default it uses `pickle` for speed, but if this fails it will fall
         back to `serpent`, which supports more data types, including initialised
         classes!
 
@@ -272,7 +272,7 @@ class Node:
             The decoded message.
         """
         try:
-            return marshal.loads(message)
+            return pickle.loads(message)
         except (EOFError, TypeError, ValueError):
             self.log.debug("Falling back to serpent for data serialisation...")
             return serpent.loads(message)
@@ -281,7 +281,7 @@ class Node:
         """
         # Encode a message to be sent to the Redis pubsub.
 
-        By default it uses `marshal` for speed, but if this fails it will fall
+        By default it uses `pickle` for speed, but if this fails it will fall
         back to `serpent`, which supports more data types, including initialised
         classes!
 
@@ -296,7 +296,7 @@ class Node:
             The encoded message.
         """
         try:
-            return marshal.dumps(message)
+            return pickle.dumps(message)
         except (EOFError, TypeError, ValueError):
             self.log.debug("Falling back to serpent for data serialisation...")
             return serpent.dumps(message)
@@ -406,7 +406,7 @@ class Node:
                 "services": self._services,
             }
         else:
-            return marshal.loads(self._redis_nodes.get(node_name))
+            return pickle.loads(self._redis_nodes.get(node_name))
 
     def get_nodes(self) -> typing.Dict[str, dict]:
         """
@@ -418,7 +418,7 @@ class Node:
             A dictionary containing all nodes on the network.
         """
         return {
-            node.decode(): marshal.loads(self._redis_nodes.get(node))
+            node.decode(): pickle.loads(self._redis_nodes.get(node))
             for node in self._redis_nodes.keys()
         }
 
@@ -905,7 +905,7 @@ class Node:
 
         # Extract the value from the parameter if it exists
         if parameter is not None:
-            return marshal.loads(parameter).get("value")
+            return pickle.loads(parameter).get("value")
 
         # Otherwise return None
         return None
@@ -996,7 +996,7 @@ class Node:
 
         # Extract the value from the parameter if it exists
         if parameter is not None:
-            return marshal.loads(parameter).get("description")
+            return pickle.loads(parameter).get("description")
 
         # Otherwise return None
         return None
@@ -1049,7 +1049,7 @@ class Node:
         # Set the parameter on the parameter server
         return self._redis_parameters.set(
             f"{node_name}.{name}",
-            marshal.dumps(
+            pickle.dumps(
                 {
                     "value": value,
                     "description": description,
@@ -1113,7 +1113,7 @@ class Node:
         for parameter in parameters:
             pipe.set(
                 f"{parameter['node_name']}.{parameter['name']}",
-                marshal.dumps(
+                pickle.dumps(
                     {
                         "value": parameter["value"],
                         "description": parameter["description"],
