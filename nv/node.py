@@ -22,6 +22,8 @@ import time
 import typing
 import uuid
 
+import numpy as np
+import quaternion  # This need to be imported to extend np
 import redis
 import serpent
 import yaml
@@ -105,13 +107,21 @@ class Node:
             db=1,
         )
 
+        # The transforms database stores transformations between frames. The key
+        # is in the form <source_frame>:<target_frame>.
+        self._redis_transforms = self._connect_redis(
+            redis_host=kwargs.get("redis_host"),
+            port=kwargs.get("redis_port") or 6379,
+            db=2,
+        )
+
         # The nodes database stores up-to-date information about which nodes are
         # active on the network. Each node is responsible for storing and
         # keeping it's own information active.
         self._redis_nodes = self._connect_redis(
             redis_host=kwargs.get("redis_host"),
             port=kwargs.get("redis_port") or 6379,
-            db=2,
+            db=3,
         )
 
         if self.skip_registration:
@@ -119,7 +129,7 @@ class Node:
         else:
 
             # Check if another node with this name already exists
-            if self.node_exists(self.name):
+            if self.check_node_exists(self.name):
                 raise exceptions.DuplicateNodeNameException(
                     "A node with the name "
                     + self.name
@@ -385,6 +395,23 @@ class Node:
         """
         return self.name
 
+    def destroy_node(self):
+        """
+        ### Destroy the node cleanly.
+        Terminating a node without calling this function is not a major issue,
+        however the node information will remain in the network for several
+        seconds, which might cause issues with service calls, or if you want to
+        re-start the node immediately.
+        """
+
+        self.log.debug("Node termination requested...")
+
+        # Remove the node from the list of nodes
+        self._deregister_node()
+
+        # Stop any timers or services currently running
+        self.stopped.set()
+
     def get_node_information(self, node_name: str = None) -> dict:
         """
         ### Return the node information dictionary.
@@ -432,6 +459,21 @@ class Node:
             A list containing all nodes on the network.
         """
         return [node.decode() for node in self._redis_nodes.keys()]
+
+    def check_node_exists(self, node_name: str) -> bool:
+        """
+        ### Check if a node exists.
+        Check if a node exists on the network.
+
+        ---
+
+        ### Parameters:
+            - `node_name` (str): The name of the node to check.
+
+        ### Returns:
+            - `True` if the node exists, `False` otherwise.
+        """
+        return self._redis_nodes.exists(node_name)
 
     def get_topics(self) -> typing.Dict[str, float]:
         """
@@ -488,21 +530,6 @@ class Node:
             for node, info in nodes.items()
             if topic in info.get("subscriptions", {})
         ]
-
-    def node_exists(self, node_name: str) -> bool:
-        """
-        ### Check if a node exists.
-        Check if a node exists on the network.
-
-        ---
-
-        ### Parameters:
-            - `node_name` (str): The name of the node to check.
-
-        ### Returns:
-            - `True` if the node exists, `False` otherwise.
-        """
-        return self._redis_nodes.exists(node_name)
 
     def create_subscription(self, topic_name: str, callback_function):
         """
@@ -613,23 +640,6 @@ class Node:
         return self._redis_topics.publish(
             topic_name, self._encode_pubsub_message(message)
         )
-
-    def destroy_node(self):
-        """
-        ### Destroy the node cleanly.
-        Terminating a node without calling this function is not a major issue,
-        however the node information will remain in the network for several
-        seconds, which might cause issues with service calls, or if you want to
-        re-start the node immediately.
-        """
-
-        self.log.debug("Node termination requested...")
-
-        # Remove the node from the list of nodes
-        self._deregister_node()
-
-        # Stop any timers or services currently running
-        self.stopped.set()
 
     def create_loop_timer(
         self,
@@ -1319,3 +1329,341 @@ class Node:
             duration = f"{duration / 86400:.0f}d"
 
         return duration, prefix, suffix
+
+    """
+    --- TRANSFORMS ---
+        Transforms work in a similar way to the ROS transform tree.
+
+        The system works by storing transformations (in the form of a 7d vector)
+        from one coordinate system (frame) to another.
+
+        The vector (a numpy ndarray) is stored in the following order:
+            - Translation [x, y, z,
+            - Rotation      qw, qx, qy, qz]
+
+        It is possible to convert between quaterion and euler angles, however it is
+        advised to do everything in quaternions where possible.
+
+        The transform tree is relatively strict to prevent errors. The following
+        rules must be adhered to:
+
+            1. There can only be one transform between frames, regardless of direction.
+                - The first published transform may be `A:B`, or `B:A`, but future transforms must be the same direction.
+            2. Every frame can only have one parent.
+                - It is advised each frame eventually leads back to the root `odom` or `map` frame.
+            3. Root frames (`map`, `odom`, `base_link`, etc) should only have one child each.
+            4. Transforms can not be deleted once they have been set.
+
+        n.b. The colon as a separator between frames; A:B means A to B.
+             A:B:C:D or A::D means A to D, via B and C.
+
+        As a result of these rules, there should be no cyclic transforms, and there
+        should only be one possible route between frames.
+    """
+
+    def set_transform(
+        self,
+        frame_source: str,
+        frame_target: str,
+        translation: np.array,
+        rotation: np.quaternion,
+    ):
+        """
+        ### Set a transform between two frames.
+        This works in the form `frame_source` to `frame_target`. If any route
+        already exists between the frames (either directly or via other frames),
+        an exception is raised.
+
+        ---
+
+        ### Parameters:
+            - `frame_source` (str): The source frame.
+            - `frame_target` (str): The target frame.
+            - `translation` (np.ndarray): The translation in the form [x, y, z].
+            - `rotation` (np.quaternion): The rotation in the form [qw, qx, qy, qz].
+
+        ---
+
+        ### Returns:
+            `True` if the transform was set successfully.
+
+        ---
+
+        ### Raises:
+            `nv.exceptions.TransformExistsException`: If the transform could not be set because it already exists.
+        """
+
+        # The ':' character is not allowed in frame names
+        if ":" in frame_source or ":" in frame_target:
+            raise Exception(
+                "The ':' character is not allowed in frame names. "
+                "Please use a different frame name."
+            )
+
+        # Ensure the translation has three elements
+        assert translation.shape == (3,), "The translation must have shape (3,)"
+
+        # Ensure the rotation is a quaternion
+        assert isinstance(
+            rotation, np.quaternion
+        ), "The rotation must be of type `np.quaternion`"
+
+        # The transform is only allowed if it either doesn't already exist, or
+        # exists as a direct transform. Pre-existing inverse or aliased
+        # transforms cannot be overwritten.
+        if self.transform_exists(
+            frame_source, frame_target
+        ) == "alias" or self.transform_exists(frame_target, frame_source):
+            raise exceptions.TransformExistsException(
+                f"Transform already exists between {frame_source} and {frame_target}. "
+                "You are not allowed to have multiple transformations between frames."
+            )
+
+        # Set the transform
+        return self._redis_transforms.set(
+            f"{frame_source}:{frame_target}",
+            pickle.dumps(
+                {
+                    "translation": translation,
+                    "rotation": rotation,
+                    "timestamp": time.time(),
+                }
+            ),
+        )
+
+    def get_transform(self, frame_source: str, frame_target: str):
+        """
+        ### Get a transform between two frames.
+        This works in the form `frame_source` to `frame_target`. This method
+        will account for any intermediary frames, i.e. get_transform(A, C) will
+        return A:B:C if there is a transform from A to B, and B to C.
+
+        ---
+
+        ### Parameters:
+            - `frame_source` (str): The source frame.
+            - `frame_target` (str): The target frame.
+
+        ---
+
+        ### Returns:
+            The transform between the two frames, or `None` if no transform
+            exists.
+
+        ---
+
+        ### Example::
+
+            # Get the transform between two frames
+            transform = get_transform(frame_source, frame_target)
+
+            # Display the transform
+            print(f"Transform from {frame_source} to {frame_target}: {transform}")
+        """
+
+        # Check if the transform exists
+        transform_path = self.transform_exists(frame_source, frame_target)
+
+        if not transform_path:
+            return None
+
+        # If the transform is direct, decode and return
+        if transform_path == "direct":
+            # Otherwise, decode the transform
+            return pickle.loads(
+                self._redis_transforms.get(f"{frame_source}:{frame_target}")
+            )
+
+        # If the transform is an alias, get the transform from the alias
+        if transform_path == "alias":
+            path = pickle.loads(
+                self._redis_transforms.get(f"{frame_source}::{frame_target}")
+            )
+
+            # Convert the path in the form ["A", "B", "C"] to the form [("A",
+            # "B"), ("B", "C")]
+            path = [(path[i], path[i + 1]) for i in range(0, len(path) - 1)]
+
+            # Get the individual transforms between each frame
+            transforms = np.array(
+                [self.get_transform(source, target) for source, target in path]
+            )
+
+            # Combine the translations by adding
+            translation = np.sum(
+                [transform["translation"] for transform in transforms], axis=0
+            )
+
+            # Combine the quaternions by multiplying
+            quaternions = [transform["rotation"] for transform in transforms]
+            output_quaternion = np.quaternion(1, 0, 0, 0)
+
+            for quaternion in quaternions:
+                output_quaternion *= quaternion
+
+            # Use the oldest timestamp
+            timestamp = np.min([transform["timestamp"] for transform in transforms])
+
+            # Return the combined transform
+            return {
+                "translation": translation,
+                "rotation": output_quaternion,
+                "timestamp": timestamp,
+            }
+
+    def transform_exists(self, frame_source: str, frame_target: str) -> str:
+        """
+        ### Check if a transform exists between two frames.
+        This works in the form `frame_source` to `frame_target`.
+
+        This method will account for any intermediary frames, i.e.
+        transform_exists(A, C) will return True if there is a transform from A
+        to B, and B to C. It will set an alias for the transform if required
+        (see `set_transform_alias`).
+
+        ---
+
+        ### Parameters:
+            - `frame_source` (str): The source frame.
+            - `frame_target` (str): The target frame.
+
+        ---
+
+        ### Returns:
+            - "direct" if the transform exists directly between frames.
+            - "alias" if the transform exists as an alias.
+            - False if no transform exists.
+        """
+
+        def find_path(frame_source: str, frame_target: str, path=[]):
+            """
+            Find any path between the source and target frame.
+            It may not be the shortest.
+            """
+
+            path = path + [frame_source]
+
+            if frame_source == frame_target:
+                return path
+
+            if frame_source not in _graph:
+                return None
+
+            for node in _graph[frame_source]:
+                if node not in path:
+                    new_path = find_path(node, frame_target, path)
+
+                    if new_path:
+                        return new_path
+
+        # Make sure the source and target are different
+        assert (
+            frame_source != frame_target
+        ), "The source and target frames must be different!"
+
+        # Alias the function to improve readability
+        tf = self._redis_transforms.exists
+
+        # Check if a transform exists
+        if tf(f"{frame_source}:{frame_target}"):
+            return "direct"
+
+        elif tf(f"{frame_source}::{frame_target}"):
+            return "alias"
+
+        # No direct or aliased transform exists, but there may be a route which
+        # has not been aliased yet. We can check this by traversing up the tree
+        # from each frame, and checking if the branches overlap at any points.
+
+        # Get all transforms in the database
+        transforms = self._redis_transforms.scan_iter(match=f"*")
+
+        _graph = {}
+
+        # Add all the transforms to the graph
+        for key in transforms:
+
+            # Decode the key
+            key = key.decode("utf-8")
+
+            # If there is more than one colon, this is an aliased transform
+            if key.count(":") != 1:
+                continue
+
+            # Split the transform into source and target
+            source, target = key.split(":")
+
+            # If the source is not in the graph, add it
+            if source not in _graph:
+                _graph[source] = set()
+
+            # Add the target to the source's branch
+            _graph[source].add(target)
+
+        # Get the path between the source and target
+        path = find_path(frame_source, frame_target)
+
+        # If the path is not found, return False
+        if path is None:
+            return False
+
+        # Otherwise, create an alias and return True
+        self.log.debug(f"New route found from {frame_source} to {frame_target}: {path}")
+
+        self.set_transform_alias(path)
+
+        return "alias"
+
+    def set_transform_alias(self, alias: list):
+        """
+        ### Set an alias for a transform.
+
+        An alias is a way to speed up lookup of indirect transforms (transforms
+        which must go through an intermediary frame, i.e. A:B:C).
+
+        They are automatically set when discovered for the first time, as it
+        allows a route between frames to be calculates once, and never again.
+
+        In the database, aliases are distinguished from direct transforms by
+        using two colons to separate frames, i.e. A::C.
+
+        ---
+
+        ### Parameters:
+            - `alias` (list): The alias to set. This is a list of frame strings in the form ["A", "B", "C"], where:
+                - A is the source frame
+                - C is the target frame
+                - B is any number of intermediary frames required to connect the source and target.
+
+        ---
+
+        ### Returns:
+            `True` if the alias was set successfully.
+
+        ---
+
+        ### Raises:
+            `nv.exceptions.TransformAliasException`: If the alias could not be set. This may be because it already exists.
+        """
+
+        # Check that the alias has at least 3 parts
+        if len(alias) < 3:
+            raise exceptions.TransformAliasException(
+                "The alias must be in the form A:B:C, where A is the source frame, "
+                "B is any number of intermediary frames, and C is the target frame."
+            )
+
+        # Check that the source and target frames are not the same
+        if alias[0] == alias[-1]:
+            raise exceptions.TransformAliasException(
+                "The source and target frames cannot be the same. Please use a different alias."
+            )
+
+        # Check that the alias does not already exist
+        if self._redis_transforms.exists(alias[0] + "::" + alias[-1]):
+            raise exceptions.TransformAliasException("The alias already exists.")
+
+        # Set the alias
+        return self._redis_transforms.set(
+            alias[0] + "::" + alias[-1], pickle.dumps(alias)
+        )
