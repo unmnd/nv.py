@@ -889,7 +889,7 @@ class Node:
         ---
 
         ### Raises:
-            Exception: If the parameter is not found and fail_if_not_found is `True`.
+            ParameterNotFoundException: If the parameter is not found and fail_if_not_found is `True`.
 
         ---
 
@@ -911,7 +911,9 @@ class Node:
 
         # Raise an exception if the parameter is not found and fail_if_not_found is True
         if parameter is None and fail_if_not_found:
-            raise Exception(f"Parameter {parameter} not found")
+            raise exceptions.ParameterNotFoundException(
+                f"Parameter {parameter} not found"
+            )
 
         # Extract the value from the parameter if it exists
         if parameter is not None:
@@ -1568,6 +1570,9 @@ class Node:
         if tf(f"{frame_source}:{frame_target}"):
             return "direct"
 
+        # TODO:
+        # Test if adding aliases to the database, as opposed to just calculating
+        # them each time, is actually faster.
         elif tf(f"{frame_source}::{frame_target}"):
             return "alias"
 

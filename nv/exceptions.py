@@ -19,11 +19,18 @@ class HostNotFoundException(Exception):
 class DuplicateNodeNameException(Exception):
     ...
 
+
 class ServiceNotFoundException(Exception):
     ...
+
 
 class TransformExistsException(Exception):
     ...
 
+
 class TransformAliasException(Exception):
+    ...
+
+
+class ParameterNotFoundException(Exception):
     ...
