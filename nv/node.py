@@ -14,6 +14,7 @@ All Rights Reserved
 """
 
 import json
+import os
 import pickle
 import signal
 import sys
@@ -32,7 +33,7 @@ from nv import exceptions, logger, timer, version
 
 
 class Node:
-    def __init__(self, name: str, skip_registration: bool = False, **kwargs):
+    def __init__(self, name: str, skip_registration: bool = False):
         """
         The Node class is the main class of the nv framework. It is used to
         handle all interaction with the framework, including initialisation of
@@ -60,7 +61,7 @@ class Node:
 
         # Initialise logger
         self.log = logger.generate_log(
-            name, log_level=kwargs.get("log_level") or logger.DEBUG
+            name, log_level=os.environ.get("NV_LOG_LEVEL") or logger.DEBUG
         )
 
         self.log.debug(
@@ -93,25 +94,28 @@ class Node:
         # Connect redis clients
         # The topics database stores messages for communication between nodes.
         # The key is always the topic.
+        redis_host = os.environ.get("NV_REDIS_HOST")
+        redis_port = os.environ.get("NV_REDIS_PORT") or 6379
+
         self._redis_topics = self._connect_redis(
-            redis_host=kwargs.get("redis_host"),
-            port=kwargs.get("redis_port") or 6379,
+            redis_host=redis_host,
+            port=redis_port,
             db=0,
         )
 
         # The parameters database stores key-value parameters to be used for
         # each node. The key is the node_name.parameter_name.
         self._redis_parameters = self._connect_redis(
-            redis_host=kwargs.get("redis_host"),
-            port=kwargs.get("redis_port") or 6379,
+            redis_host=redis_host,
+            port=redis_port,
             db=1,
         )
 
         # The transforms database stores transformations between frames. The key
         # is in the form <source_frame>:<target_frame>.
         self._redis_transforms = self._connect_redis(
-            redis_host=kwargs.get("redis_host"),
-            port=kwargs.get("redis_port") or 6379,
+            redis_host=redis_host,
+            port=redis_port,
             db=2,
         )
 
@@ -119,8 +123,8 @@ class Node:
         # active on the network. Each node is responsible for storing and
         # keeping it's own information active.
         self._redis_nodes = self._connect_redis(
-            redis_host=kwargs.get("redis_host"),
-            port=kwargs.get("redis_port") or 6379,
+            redis_host=redis_host,
+            port=redis_port,
             db=3,
         )
 
