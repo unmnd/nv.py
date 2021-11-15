@@ -40,9 +40,6 @@ help:
 build:
 	docker build -t $(APP_NAME) .
 
-build-cuda:
-	docker build -t $(APP_NAME)-cuda -f Dockerfile.l4t .
-
 
 tag: tag-latest tag-version
 
@@ -53,16 +50,6 @@ tag-latest:
 tag-version:
 	@echo "Tagging image as '$(VERSION)'"
 	docker tag $(APP_NAME) $(REMOTE_REGISTRY)/$(APP_NAME):$(VERSION)
-
-tag-cuda: tag-cuda-latest tag-cuda-version
-
-tag-cuda-latest:
-	@echo "Tagging image as 'cuda-latest'"
-	docker tag $(APP_NAME)-cuda $(REMOTE_REGISTRY)/$(APP_NAME):cuda-latest
-
-tag-cuda-version:
-	@echo "Tagging image as 'cuda-$(VERSION)'"
-	docker tag $(APP_NAME)-cuda $(REMOTE_REGISTRY)/$(APP_NAME):cuda-$(VERSION)
 
 
 push: push-latest push-version
@@ -75,15 +62,8 @@ push-version: tag-version
 	@echo "Pushing image as '$(VERSION)'"
 	docker push $(REMOTE_REGISTRY)/$(APP_NAME):$(VERSION)
 
-push-cuda: push-cuda-latest push-cuda-version
 
-push-cuda-latest: tag-cuda-latest
-	@echo "Pushing image as 'cuda-latest'"
-	docker push $(REMOTE_REGISTRY)/$(APP_NAME):cuda-latest
-
-push-cuda-version: tag-cuda-version
-	@echo "Pushing image as 'cuda-$(VERSION)'"
-	docker push $(REMOTE_REGISTRY)/$(APP_NAME):cuda-$(VERSION)
+all: build push
 
 
 version:

@@ -1,10 +1,11 @@
 #
 # ------------------------------------------------------------------------------
 #                                NV DOCKERFILE
+#                                 L4T EDITION
 # ------------------------------------------------------------------------------
 #
-# The base Docker image for the nv framework, which contains a minimal Alpine
-# linux installation, Python, and the latest nv framework.
+# This Dockerfile adapts the standard nv dockerfile to include the L4T base
+# image, meaning the Nvidia Container Runtime on Jetson is available.
 #
 # The nv framework is used as an alternative for ROS2, as a robotics framework
 # which facilitates communication and interaction between different 'nodes'. It
@@ -16,12 +17,25 @@
 #
 # All Rights Reserved
 
-# Currently, this uses Python 3.10 but there should be no issues with automatic
-# updates to later Python 3 versions.
-FROM python:3-alpine
+FROM nvcr.io/nvidia/l4t-base:r32.6.1
+
+ARG DEBIAN_FRONTEND="noninteractive"
+ENV TZ="Europe/London"
+
+ARG PYTHON_VERSION="3.8"
+
+# Install Python and pip
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends software-properties-common && \
+    add-apt-repository -y ppa:deadsnakes && \
+    apt-get install -y --no-install-recommends python${PYTHON_VERSION} python${PYTHON_VERSION}-dev python${PYTHON_VERSION}-venv && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN python${PYTHON_VERSION} -m venv /venv
+ENV PATH=/venv/bin:$PATH
 
 WORKDIR /opt/nv
-ENV PYTHONPATH /opt/nv/nodes
 
 # Copy examples
 COPY examples examples
@@ -33,6 +47,7 @@ COPY nv/version.py nv/version.py
 # Install requirements for the nv framework by first separating dependencies
 # from the setup.py file, then installing them.
 RUN python3 setup.py egg_info && \
+    python3 -m pip install --upgrade pip && \
     pip3 install -r *.egg-info/requires.txt && \
     rm -rf *.egg-info
 

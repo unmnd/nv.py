@@ -14,7 +14,6 @@ setup(
         "pyyaml==6.0",
         "click==8.0.3",
         "redis==3.5.3",
-        "serpent==1.40",
         "numpy==1.20.3",
         "numba==0.54.1",
         "numpy-quaternion==2021.11.4.15.26.3",
