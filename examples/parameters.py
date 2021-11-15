@@ -58,12 +58,22 @@ class ParameterExamples(Node):
 
         # If you want to set loads of parameters, you can do this from a .json
         # or .yaml file accessible from the node
-        self.set_parameters_from_file(
-            os.path.join(Path(__file__).parent, "config.json")
-        )
+        self.set_parameters_from_file(os.path.join(Path(__file__).parent, "config.yml"))
         self.log.info(
-            f"Parameter from `config.json`: {self.get_parameter('param1', node_name='node1')}"
+            f"Parameter from `config.yml`: {self.get_parameter('param1', node_name='node1')}"
         )
+
+        # An environment variable condition can be applied to any top-level
+        # assignment. In the config files, `node1(ENV_VARIABLE==somevalue)` will
+        # assign the parameters to node1 only if ENV_VARIABLE==somevalue.
+
+        # Should be "value1"
+        self.log.info(self.get_parameter("param1", node_name="node1"))
+        os.environ["ENV_VARIABLE"] = "somevalue"
+        self.set_parameters_from_file(os.path.join(Path(__file__).parent, "config.yml"))
+
+        # Should be "value1_override"
+        self.log.info(self.get_parameter("param1", node_name="node1"))
 
         # You can get all parameters for a node with `get_parameters`
         self.log.info(f"All parameters for this node: {self.get_parameters()}")

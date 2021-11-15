@@ -11,3 +11,8 @@ node1:
 node2:
     param3: value3
     param4: value4
+
+# As the file is read from top to bottom, place conditionals after any default
+# values to override them.
+node1(${ENV_VARIABLE} == "somevalue" or ${ENV_VARIABLE} == "othervalue"):
+    param1: value1_override
