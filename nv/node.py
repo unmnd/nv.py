@@ -26,7 +26,6 @@ import uuid
 import numpy as np
 import quaternion  # This need to be imported to extend np
 import redis
-import serpent
 import yaml
 
 from nv import exceptions, logger, timer, version
@@ -269,11 +268,7 @@ class Node:
 
     def _decode_pubsub_message(self, message):
         """
-        # Decode a message received by a callback to the Redis pubsub.
-
-        By default it uses `pickle` for speed, but if this fails it will fall
-        back to `serpent`, which supports more data types, including initialised
-        classes!
+        ### Decode a message received by a callback to the Redis pubsub.
 
         ---
 
@@ -285,19 +280,11 @@ class Node:
         ### Returns:
             The decoded message.
         """
-        try:
-            return pickle.loads(message)
-        except (EOFError, TypeError, ValueError):
-            self.log.debug("Falling back to serpent for data serialisation...")
-            return serpent.loads(message)
+        return pickle.loads(message)
 
     def _encode_pubsub_message(self, message):
         """
-        # Encode a message to be sent to the Redis pubsub.
-
-        By default it uses `pickle` for speed, but if this fails it will fall
-        back to `serpent`, which supports more data types, including initialised
-        classes!
+        ### Encode a message to be sent to the Redis pubsub.
 
         ---
 
@@ -309,11 +296,7 @@ class Node:
         ### Returns:
             The encoded message.
         """
-        try:
-            return pickle.dumps(message)
-        except (EOFError, TypeError, ValueError):
-            self.log.debug("Falling back to serpent for data serialisation...")
-            return serpent.dumps(message)
+        return pickle.dumps(message)
 
     def _handle_subscription_callback(self, message):
         """
