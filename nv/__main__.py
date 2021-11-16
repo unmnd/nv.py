@@ -24,8 +24,8 @@ import nv.version
 
 node = nv.node.Node(
     f"nv_cli #{uuid.uuid4()}",
-    log_level=nv.logger.ERROR,
     skip_registration=True,
+    log_level=nv.logger.ERROR,
 )
 
 

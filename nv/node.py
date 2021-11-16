@@ -33,7 +33,9 @@ from nv import exceptions, logger, timer, version
 
 
 class Node:
-    def __init__(self, name: str, skip_registration: bool = False):
+    def __init__(
+        self, name: str, skip_registration: bool = False, log_level: int = None
+    ):
         """
         The Node class is the main class of the nv framework. It is used to
         handle all interaction with the framework, including initialisation of
@@ -61,7 +63,7 @@ class Node:
 
         # Initialise logger
         self.log = logger.generate_log(
-            name, log_level=os.environ.get("NV_LOG_LEVEL") or logger.DEBUG
+            name, log_level=log_level or os.environ.get("NV_LOG_LEVEL") or logger.DEBUG
         )
 
         self.log.debug(
@@ -1352,14 +1354,14 @@ class Node:
     --- TRANSFORMS ---
         Transforms work in a similar way to the ROS transform tree.
 
-        The system works by storing transformations (in the form of a 7d vector)
+        The system works by storing transformations (as a translation and rotation vector)
         from one coordinate system (frame) to another.
 
-        The vector (a numpy ndarray) is stored in the following order:
-            - Translation [x, y, z,
-            - Rotation      qw, qx, qy, qz]
+        The vectors are stored in the following order:
+            - Translation [x, y, z]
+            - Rotation    [qw, qx, qy, qz]
 
-        It is possible to convert between quaterion and euler angles, however it is
+        It is possible to convert between quaternion and euler angles, however it is
         advised to do everything in quaternions where possible.
 
         The transform tree is relatively strict to prevent errors. The following
