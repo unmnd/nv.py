@@ -240,6 +240,7 @@ class Node:
             # Don't catch for errors; if a host is supplied it should override
             # any other auto-detection.
             r.ping()
+            return r
         else:
             for host in ["redis", "localhost"]:
                 r = redis.Redis(host=host, port=port, db=db)
