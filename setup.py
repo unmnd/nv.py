@@ -10,9 +10,6 @@ setup(
     author="UNMND, Ltd.",
     author_email="callum@unmnd.com",
     packages=["nv"],
-    setup_requires=[
-        "numpy==1.20.3",
-    ],
     install_requires=[
         "pyyaml==6.0",
         "click==8.0.3",
