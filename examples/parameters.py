@@ -78,6 +78,13 @@ class ParameterExamples(Node):
         # You can get all parameters for a node with `get_parameters`
         self.log.info(f"All parameters for this node: {self.get_parameters()}")
 
+        # Finally you can remove parameters from the parameter server
+        self.delete_parameter("example_parameter")
+        self.log.info(f"Removed parameter: {self.get_parameter('example_parameter')}")
+
+        # You can remove all parameters from a node at once
+        self.delete_parameters()
+
 
 def main():
     node = ParameterExamples()

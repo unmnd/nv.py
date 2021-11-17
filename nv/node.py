@@ -34,7 +34,11 @@ from nv import exceptions, logger, timer, version
 
 class Node:
     def __init__(
-        self, name: str, skip_registration: bool = False, log_level: int = None
+        self,
+        name: str,
+        skip_registration: bool = False,
+        log_level: int = None,
+        keep_old_parameters: bool = False,
     ):
         """
         The Node class is the main class of the nv framework. It is used to
@@ -55,6 +59,10 @@ class Node:
             - `skip_registration` (bool): Whether to skip registering the node.
                 This should not be used for normal nodes, but is useful for
                 commandline access.
+            - `log_level` (int): The log level to use. If not specified, the
+                default is used.
+            - `keep_old_parameters` (bool): Whether to keep old parameters from
+                previous instances of this node.
         """
 
         # Bind callbacks to gracefully exit the node on signal
@@ -144,6 +152,10 @@ class Node:
 
             # Register the node with the server
             self._register_node()
+
+            # Remove residual parameters if required
+            if not keep_old_parameters:
+                self.delete_parameters()
 
         # Start the pubsub loop for topics in a separate thread.
         Node._pubsub = self._redis_topics.pubsub()
@@ -1126,6 +1138,76 @@ class Node:
 
         # Set the parameters on the parameter server, only returning True if all
         # parameters were set successfully
+        return pipe.execute()
+
+    def delete_parameter(self, name: str, node_name: str = None):
+        """
+        ### Delete a parameter value on the parameter server.
+
+        ---
+
+        ### Parameters:
+            - `name` (str): The parameter name to delete.
+            - `node_name` (str): Optionally delete parameters on a different node.
+                If not specified, uses the current node.
+
+        ---
+
+        ### Returns:
+            `True` if the parameter was deleted correctly.
+
+        """
+
+        # If the node name is not specified, use the current node
+        if not node_name:
+            node_name = self.name
+
+        # Delete the parameter on the parameter server
+        return self._redis_parameters.delete(f"{node_name}.{name}")
+
+    def delete_parameters(self, names: typing.List[str] = None, node_name: str = None):
+        """
+        ### Delete multiple parameter values on the parameter server at once.
+
+        Supplying no arguments will delete all parameters on the current node.
+        Supplying only parameter names will use the current node.
+
+        ---
+
+        ### Parameters:
+            - `names` (list): A list of parameter names to delete. If not specified,
+                all parameters on the specified node will be deleted.
+            - `node_name` (str): Optionally delete parameters on a different node.
+                If not specified, uses the current node.
+
+        ---
+
+        ### Returns:
+            `True` if all parameters were deleted successfully.
+
+        """
+
+        # If the node name is not specified, use the current node
+        if not node_name:
+            node_name = self.name
+
+        # Create a pipe to send all updates at once
+        pipe = self._redis_parameters.pipeline()
+
+        # If no names are specified, delete all parameters on the node
+        if names is None:
+            # Get all parameters on the node
+            names = self._redis_parameters.scan_iter(f"{node_name}.*")
+        else:
+            # Append the node name to each parameter name
+            names = [f"{node_name}.{name}" for name in names]
+
+        # Delete each parameter
+        for name in names:
+            pipe.delete(name)
+
+        # Delete the parameters on the parameter server, only returning True if all
+        # parameters were deleted successfully
         return pipe.execute()
 
     def set_parameters_from_file(self, filepath):
