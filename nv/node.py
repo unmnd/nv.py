@@ -74,6 +74,11 @@ class Node:
             name, log_level=log_level or os.environ.get("NV_LOG_LEVEL") or logger.DEBUG
         )
 
+        # Check if the node should be started by calling self.node_condition().
+        while not self.node_condition():
+            self.log.info(f"Node condition not met, waiting...")
+            time.sleep(10)
+
         self.log.debug(
             f"Initialising '{name}' using framework version nv {version.__version__}"
         )
@@ -289,9 +294,7 @@ class Node:
                 # block for up to that time. If no messages are received, the
                 # function will return None. A larger timeout is less CPU
                 # intensive, but means node termination will be delayed.
-                Node._pubsub.get_message(
-                    ignore_subscribe_messages=True, timeout=1
-                )
+                Node._pubsub.get_message(ignore_subscribe_messages=True, timeout=1)
             except RuntimeError:
                 # If there are no subscriptions, an error is thrown. This is
                 # fine; when a subscription is added the errors will stop.
@@ -372,6 +375,24 @@ class Node:
         self.log.info("Received program termination signal; exiting...")
         self.destroy_node()
         sys.exit(0)
+
+    def node_condition(self) -> bool:
+        """
+        This function is called before any further node setup. It is used to
+        determine whether the node should be started or not.
+
+        It can be used to stop node creation until a desired condition is met,
+        for example that a device is connected.
+
+        When overwriting this function in a node, it should not depend on any
+        other node functions, as they will not be initialised yet.
+
+        ---
+
+        ### Returns:
+            `True` if the node should be started, `False` otherwise.
+        """
+        return True
 
     def spin(self):
         """
@@ -585,9 +606,7 @@ class Node:
         # a short period of time, and so it's avoided.
 
         # Create the subscription to Redis
-        Node._pubsub.subscribe(
-            **{topic_name: self._handle_subscription_callback}
-        )
+        Node._pubsub.subscribe(**{topic_name: self._handle_subscription_callback})
 
         # Add the subscription to the list of subscriptions for this topic
         if topic_name in self._subscriptions:
