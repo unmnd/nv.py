@@ -157,9 +157,22 @@ class Node:
             if not keep_old_parameters:
                 self.delete_parameters()
 
+        # Pubsub is done globally, this allows topics to be subscribed to
+        # without restarting the pubsub thread. The issue with this is that
+        # multiple nodes initialised by the same file will conflict. We get
+        # around this by only creating variables if they don't already exist.
+
         # Start the pubsub loop for topics in a separate thread.
-        Node._pubsub = self._redis_topics.pubsub()
-        Node._pubsub_thread = threading.Thread(target=self._pubsub_loop)
+        try:
+            Node._pubsub
+        except AttributeError:
+            Node._pubsub = self._redis_topics.pubsub()
+
+        # Create the pubsub thread if required
+        try:
+            Node._pubsub_thread
+        except AttributeError:
+            Node._pubsub_thread = threading.Thread(target=self._pubsub_loop)
 
     def _register_node(self):
         """
@@ -276,7 +289,9 @@ class Node:
                 # block for up to that time. If no messages are received, the
                 # function will return None. A larger timeout is less CPU
                 # intensive, but means node termination will be delayed.
-                Node._pubsub.get_message(ignore_subscribe_messages=True, timeout=1)
+                Node._pubsub.get_message(
+                    ignore_subscribe_messages=True, timeout=1
+                )
             except RuntimeError:
                 # If there are no subscriptions, an error is thrown. This is
                 # fine; when a subscription is added the errors will stop.
@@ -570,7 +585,9 @@ class Node:
         # a short period of time, and so it's avoided.
 
         # Create the subscription to Redis
-        Node._pubsub.subscribe(**{topic_name: self._handle_subscription_callback})
+        Node._pubsub.subscribe(
+            **{topic_name: self._handle_subscription_callback}
+        )
 
         # Add the subscription to the list of subscriptions for this topic
         if topic_name in self._subscriptions:
@@ -770,6 +787,36 @@ class Node:
 
         # Save the service name and ID
         self._services[service_name] = service_id
+
+    def wait_for_service_ready(self, service_name: str, timeout: int = 10):
+        """
+        ### Wait for a service to be ready.
+
+        This method is used to wait for a service to be ready before calling it.
+        This is useful when a service is created in the same thread as the node,
+        and the node needs to wait for the service to be ready before calling it.
+
+        ---
+
+        ### Parameters:
+            - `service_name` (str): The name of the service to wait for.
+            - `timeout` (int): The timeout in seconds to wait for the service to
+                be ready.
+
+        ---
+
+        ### Returns:
+            bool: `True` if the service is ready, `False` otherwise.
+        """
+
+        while service_name not in self.get_services():
+            if timeout <= 0:
+                return False
+
+            time.sleep(0.1)
+            timeout -= 0.1
+
+        return True
 
     def call_service(self, service_name: str, *args, **kwargs):
         """
