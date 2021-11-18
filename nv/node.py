@@ -1316,7 +1316,35 @@ class Node:
             elif filepath.endswith(".yml") or filepath.endswith(".yaml"):
                 parameters_dict = yaml.safe_load(f)
 
-        return parameters_dict
+            parameters = {}
+
+            # Evaluate any conditionals in the file
+            for key, value in parameters_dict.items():
+                if "(" in key:
+
+                    # Get the condition
+                    condition_original = re.search(r"\((.*)\)", key).group(1)
+
+                    # Replace all env names with os.environ.get(name)
+                    condition = re.sub(
+                        r"\$\{(.*?)\}",
+                        lambda x: f"os.environ.get('{x.group(1)}')",
+                        condition_original,
+                    )
+
+                    # Replace any logic operators with their Python equivalents
+                    condition = re.sub(r"\|\|", "or", condition)
+                    condition = re.sub(r"&&", "and", condition)
+
+                    # Evaluate the condition
+                    if not eval(condition):
+                        continue
+                    else:
+                        key = key.replace(f"({condition_original})", "")
+
+                parameters[key] = value
+
+        return parameters
 
     def set_parameters_from_file(self, filepath):
         """
@@ -1408,29 +1436,6 @@ class Node:
 
                 # If this is the first level of the parameter, set the node name
                 if _node_name is None:
-
-                    # Check if the name contains an env variable conditional
-                    if "(" in key:
-
-                        # Get the condition
-                        condition_original = re.search(r"\((.*)\)", key).group(1)
-
-                        # Replace all env names with os.environ.get(name)
-                        condition = re.sub(
-                            r"\$\{(.*?)\}",
-                            lambda x: f"os.environ.get('{x.group(1)}')",
-                            condition_original,
-                        )
-
-                        # Replace any logic operators with their Python equivalents
-                        condition = re.sub(r"\|\|", "or", condition)
-                        condition = re.sub(r"&&", "and", condition)
-
-                        # Evaluate the condition
-                        if not eval(condition):
-                            continue
-                        else:
-                            key = key.replace(f"({condition_original})", "")
 
                     # Recurse all parameters
                     parameter_list.extend(
