@@ -63,6 +63,13 @@ class ParameterExamples(Node):
             f"Parameter from `config.yml`: {self.get_parameter('param1', node_name='node1')}"
         )
 
+        # If you only want to load the parameters but not set them on the
+        # parameter server, you can use `load_parameters_from_file`
+        parameters = self.load_parameters_from_file(
+            os.path.join(Path(__file__).parent, "config.yml")
+        )
+        self.log.info(f"Parameter from `config.yml`: {parameters['node1']['param1']}")
+
         # An environment variable condition can be applied to any top-level
         # assignment. In the config files, `node1(ENV_VARIABLE==somevalue)` will
         # assign the parameters to node1 only if ENV_VARIABLE==somevalue.

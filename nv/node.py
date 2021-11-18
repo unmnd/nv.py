@@ -1276,6 +1276,48 @@ class Node:
         # parameters were deleted successfully
         return pipe.execute()
 
+    def load_parameters_from_file(self, filepath) -> dict:
+        """
+        ### Load a dictionary of parameters, but don't set them on the parameter server.
+
+        To automatically load and set parameters in the parameter server, use
+        `node.set_parameters_from_file`.
+
+        ---
+
+        ### Parameters:
+            - `filepath` (str): The path to the file to load.
+
+        ---
+
+        ### Returns:
+            A dictionary of parameters.
+
+        ---
+
+        ### Raises:
+            Exception: If the file cannot be loaded.
+
+        ---
+
+        ### Example::
+
+            # Load the parameters from a file
+            parameters = node.load_parameters_from_file("/path/to/parameters.json")
+        """
+
+        # Read the file
+        with open(filepath, "r") as f:
+
+            # Determine the type of file
+            if filepath.endswith(".json"):
+                parameters_dict = json.load(f)
+
+            elif filepath.endswith(".yml") or filepath.endswith(".yaml"):
+                parameters_dict = yaml.safe_load(f)
+
+        return parameters_dict
+
     def set_parameters_from_file(self, filepath):
         """
         ### Set multiple parameter values on the parameter server from a file.
@@ -1340,7 +1382,7 @@ class Node:
             }
         """
 
-        def convert_to_parameter_dict(parameter_dict, _node_name=None, _subparams=[]):
+        def convert_to_parameter_list(parameter_dict, _node_name=None, _subparams=[]):
             """
             Convert a parameter dictionary read from a file, to a list of
             parameters suitable for sending to the parameter server.
@@ -1392,13 +1434,13 @@ class Node:
 
                     # Recurse all parameters
                     parameter_list.extend(
-                        convert_to_parameter_dict(value, _node_name=key)
+                        convert_to_parameter_list(value, _node_name=key)
                     )
 
                 elif isinstance(value, dict):
                     # Recurse into subparameters
                     parameter_list.extend(
-                        convert_to_parameter_dict(
+                        convert_to_parameter_list(
                             value,
                             _subparams=[*_subparams, key],
                             _node_name=_node_name,
@@ -1418,17 +1460,11 @@ class Node:
 
         self.log.info(f"Setting parameters from file: {filepath}")
 
-        # Read the file
-        with open(filepath, "r") as f:
+        # Load the parameters from the file
+        parameters = self.load_parameters_from_file(filepath)
 
-            # Determine the type of file
-            if filepath.endswith(".json"):
-                parameters_dict = json.load(f)
-
-            elif filepath.endswith(".yml") or filepath.endswith(".yaml"):
-                parameters_dict = yaml.safe_load(f)
-
-        parameters = convert_to_parameter_dict(parameters_dict)
+        # Convert the parameters to a list of parameters
+        parameters = convert_to_parameter_list(parameters)
 
         if self.set_parameters(parameters):
             self.log.info("Parameters set successfully.")
