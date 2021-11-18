@@ -421,7 +421,7 @@ class Node:
         ### Returns:
             A logger for the nv framework.
         """
-        return logger.generate_log(name or self.name, log_level)
+        return logger.get_logger(name or self.name)
 
     def get_name(self) -> str:
         """

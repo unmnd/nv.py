@@ -74,4 +74,14 @@ def generate_log(name: str, log_level: int = logging.DEBUG):
     return log
 
 
-get_logger = generate_log
+def get_logger(name: str):
+    """
+    Get the logger for a given name.
+
+    Parameters:
+        name (str): Name of the log.
+
+    Returns:
+        logging.Logger: Logger object.
+    """
+    return logging.getLogger(name)
