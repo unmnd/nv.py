@@ -1,0 +1,5 @@
+parameter_node:
+    test_param_3: test_value_3
+
+parameter_node(${NV_EXAMPLE_ENV_CONDITIONAL} == "123"):
+    test_param_4: test_value_4
