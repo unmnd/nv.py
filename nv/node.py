@@ -149,11 +149,24 @@ class Node:
 
             # Check if another node with this name already exists
             if self.check_node_exists(self.name):
-                raise exceptions.DuplicateNodeNameException(
-                    "A node with the name "
-                    + self.name
-                    + " already exists on this network."
+                # It may have been recently terminated, wait up to
+                # 10 seconds and try again
+
+                self.log.warning(
+                    f"Node '{self.name}' already exists, waiting to see if it disappears..."
                 )
+
+                start_time = time.time()
+
+                while self.check_node_exists(self.name):
+                    time.sleep(1)
+
+                    if time.time() - start_time > 10:
+                        raise exceptions.DuplicateNodeNameException(
+                            f"Node '{self.name}' already exists on this network!"
+                        )
+
+                self.log.info(f"Node '{self.name}' no longer exists, continuing...")
 
             # Register the node with the server
             self._register_node()
