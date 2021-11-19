@@ -288,7 +288,7 @@ class Node:
                 return False
 
         # First try to connect with a unix socket
-        r = redis.Redis(unix_socket_path=sock_path)
+        r = redis.Redis(unix_socket_path=sock_path, db=db)
         if _test_connection(r):
             self.log.debug(f"Connecting to redis using unix sockets at: {sock_path}")
             return r
