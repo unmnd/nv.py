@@ -884,9 +884,14 @@ class Node:
                 """
                 Wait for the response.
                 """
-
                 self._response_received.wait(timeout)
                 self._response_received.clear()
+
+            def done(self):
+                """
+                Check if the response has been received.
+                """
+                return self._response_received.is_set()
 
             def get_response(self):
                 """
