@@ -177,7 +177,9 @@ class Node:
         try:
             Node._pubsub_thread
         except AttributeError:
-            Node._pubsub_thread = threading.Thread(target=self._pubsub_loop)
+            Node._pubsub_thread = threading.Thread(
+                target=self._pubsub_loop, daemon=True
+            )
 
     def _register_node(self):
         """
@@ -222,11 +224,18 @@ class Node:
 
         self.log.info(f"Node successfully deregistered!")
 
-    def _connect_redis(self, redis_host: str = None, port: int = 6379, db: int = 0):
+    def _connect_redis(
+        self,
+        sock_path: str = "/tmp/docker/redis.sock",
+        redis_host: str = None,
+        port: int = 6379,
+        db: int = 0,
+    ):
         """
-        Connect the Redis client to the database to allow messaging. It attempts
-        to find the host automatically on either localhost, or connecting to a
-        container named 'redis'.
+        Connect the Redis client to the database to allow messaging. It uses a
+        unix sock if available, otherwise it attempts to find the host
+        automatically on either localhost, or connecting to a container named
+        'redis'.
 
         Optionally, the host can be specified using the parameter `redis_host`,
         to overwrite autodetection.
@@ -234,6 +243,7 @@ class Node:
         ---
 
         ### Parameters:
+            - `sock_path` (str): The path to the unix socket.
             - `redis_host` (str): The host of the redis database.
             - `port` (int): The port of the redis database.
             - `db` (int): The database hosting messaging data.
@@ -264,6 +274,12 @@ class Node:
             except redis.exceptions.ConnectionError:
                 return False
 
+        # First try to connect with a unix socket
+        r = redis.Redis(unix_socket_path=sock_path)
+        if _test_connection(r):
+            self.log.debug(f"Connecting to redis using unix sockets at: {sock_path}")
+            return r
+
         if redis_host:
             r = redis.Redis(host=redis_host, port=port, db=db)
 
@@ -287,14 +303,14 @@ class Node:
         Continously monitors the Redis server for updated messages, enabling
         subscription callbacks to trigger.
         """
-        while not self.stopped.is_set():
+        while True:
             try:
                 # The timeout changes the way this function works.
                 # Normally, the function will not block. Adding a timeout will
                 # block for up to that time. If no messages are received, the
                 # function will return None. A larger timeout is less CPU
                 # intensive, but means node termination will be delayed.
-                Node._pubsub.get_message(ignore_subscribe_messages=True, timeout=1)
+                Node._pubsub.get_message(ignore_subscribe_messages=True, timeout=100)
             except RuntimeError:
                 # If there are no subscriptions, an error is thrown. This is
                 # fine; when a subscription is added the errors will stop.
