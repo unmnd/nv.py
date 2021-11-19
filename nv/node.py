@@ -586,7 +586,7 @@ class Node:
             if topic in info.get("subscriptions", {})
         ]
 
-    def create_subscription(self, topic_name: str, callback_function):
+    def create_subscription(Node, topic_name: str, callback_function) -> object:
         """
         ### Create a subscription to a topic.
 
@@ -605,8 +605,25 @@ class Node:
             def callback_function(msg):
                 print(msg)
 
-            create_subscription("test", callback_function)
+            sub = create_subscription("test", callback_function)
+
+            # Unsubscribe from the topic
+            sub.unsubscribe()
         """
+
+        class Subscription:
+            def __init__(self, topic_name, callback_function):
+                self.topic_name = topic_name
+                self.callback_function = callback_function
+                self.subscribed = True
+
+            def unsubscribe(self):
+                if self.subscribed:
+                    Node._subscriptions[topic_name].remove(self.callback_function)
+                    self.subscribed = False
+                    return True
+
+                return False
 
         # Start the pubsub loop if it hasn't already been started
         if not Node._pubsub_thread.is_alive():
@@ -622,13 +639,15 @@ class Node:
         # a short period of time, and so it's avoided.
 
         # Create the subscription to Redis
-        Node._pubsub.subscribe(**{topic_name: self._handle_subscription_callback})
+        Node._pubsub.subscribe(**{topic_name: Node._handle_subscription_callback})
 
         # Add the subscription to the list of subscriptions for this topic
-        if topic_name in self._subscriptions:
-            self._subscriptions[topic_name].append(callback_function)
+        if topic_name in Node._subscriptions:
+            Node._subscriptions[topic_name].append(callback_function)
         else:
-            self._subscriptions[topic_name] = [callback_function]
+            Node._subscriptions[topic_name] = [callback_function]
+
+        return Subscription(topic_name, callback_function)
 
     def get_latest_message(self, topic_name: str):
         """
@@ -658,6 +677,10 @@ class Node:
     def destroy_subscription(self, topic_name: str):
         """
         ### Destroy a subscription to a topic.
+
+        Note: This will remove *all* subscription callbacks for a particular
+        topic. It's recommended to instead use the `unsubscribe` method in the
+        `Subscription` object.
 
         ---
 
