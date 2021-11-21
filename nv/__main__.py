@@ -149,7 +149,7 @@ def topic_echo(topic):
     click.echo(f"Echoing from topic: {topic}")
 
     def echo_callback(message):
-        print(str(message))
+        click.echo(str(message))
 
     node.create_subscription(topic, echo_callback)
     node.spin()
@@ -421,6 +421,36 @@ def service_call(service_name, arg, kwarg):
     service_result.wait()
 
     click.echo(f"Service result: {service_result.get_response()}")
+
+
+@main.group("tree")
+def tree():
+    """
+    Functions related to behaviour trees.
+    """
+    ...
+
+
+@tree.command("blackboard")
+def tree_blackboard():
+    """
+    Monitor the py_trees blackboard.
+    """
+
+    class Blackboard:
+        blackboard_state = (
+            node.call_service("get_blackboard_state").wait().get_response()
+        )
+
+    def echo_callback(message):
+
+        # Update the blackboard state
+        Blackboard.blackboard_state[message["key"]] = message["current_value"]
+
+        click.echo(json.dumps(Blackboard.blackboard_state, indent=4))
+
+    node.create_subscription("blackboard_activity", echo_callback)
+    node.spin()
 
 
 if __name__ == "__main__":
