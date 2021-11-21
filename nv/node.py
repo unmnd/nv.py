@@ -578,6 +578,10 @@ class Node:
         """
         ### Get a list of nodes which are subscribed to a specific topic.
 
+        Note: This will not count nodes which have not been registered (such as
+        the nv cli)! If you want to include these subscribers, use
+        `get_num_topic_subscriptions` instead.
+
         ---
 
         ### Parameters:
@@ -598,6 +602,28 @@ class Node:
             for node, info in nodes.items()
             if topic in info.get("subscriptions", {})
         ]
+
+    def get_num_topic_subscriptions(self, topic: str) -> int:
+        """
+        ### Get the number of topic subscriptions.
+
+        Although this method could call `get_topic_subscriptions`, this will
+        ignore any nodes which are not currently registered (such as the nv
+        cli). Instead, it uses the built-in redis clients list, which only keeps
+        a list of topics with at least one subscription.
+
+        ---
+
+        ### Parameters:
+            - `topic` (str): The topic to check.
+
+        ---
+
+        ### Returns:
+            The number of subscribers to the topic.
+        """
+
+        return self._redis_topics.pubsub_numsub(topic)[0][1]
 
     def create_subscription(Node, topic_name: str, callback_function) -> object:
         """
