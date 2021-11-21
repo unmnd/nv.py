@@ -14,6 +14,7 @@ All Rights Reserved
 import json
 import time
 import uuid
+from gettext import ngettext
 
 import click
 
@@ -49,6 +50,71 @@ class CustomGroup(click.Group):
         return super().format_help(ctx, formatter)
 
 
+class CustomChoice(click.Choice):
+    """
+    Custom implementation of `click.Choice` which can allow any value, but
+    displays a warning if the value is not in the list of choices.
+    """
+
+    def __init__(
+        self, choices, case_sensitive: bool = True, allow_others: bool = True
+    ) -> None:
+        self.choices = choices
+        self.case_sensitive = case_sensitive
+        self.allow_others = allow_others
+
+    def convert(
+        self,
+        value,
+        param,
+        ctx,
+    ):
+        # Match through normalization and case sensitivity
+        # first do token_normalize_func, then lowercase
+        # preserve original `value` to produce an accurate message in
+        # `self.fail`
+        normed_value = value
+        normed_choices = {choice: choice for choice in self.choices}
+
+        if ctx is not None and ctx.token_normalize_func is not None:
+            normed_value = ctx.token_normalize_func(value)
+            normed_choices = {
+                ctx.token_normalize_func(normed_choice): original
+                for normed_choice, original in normed_choices.items()
+            }
+
+        if not self.case_sensitive:
+            normed_value = normed_value.casefold()
+            normed_choices = {
+                normed_choice.casefold(): original
+                for normed_choice, original in normed_choices.items()
+            }
+
+        if normed_value in normed_choices:
+            return normed_choices[normed_value]
+
+        choices_str = ", ".join(map(repr, self.choices))
+
+        if self.allow_others:
+            click.echo(
+                click.style(
+                    f"Warning: {value} has not yet been published to.",
+                    fg="yellow",
+                )
+            )
+            return value
+        else:
+            self.fail(
+                ngettext(
+                    "{value!r} is not {choice}.",
+                    "{value!r} is not one of {choices}.",
+                    len(self.choices),
+                ).format(value=value, choice=choices_str, choices=choices_str),
+                param,
+                ctx,
+            )
+
+
 @click.group(cls=CustomGroup)
 @click.option(
     "--version", is_flag=True, callback=print_version, expose_value=False, is_eager=True
@@ -75,7 +141,7 @@ def topic():
 
 
 @topic.command("echo")
-@click.argument("topic", type=click.Choice(node.get_topics().keys()))
+@click.argument("topic", type=CustomChoice(node.get_topics().keys()))
 def topic_echo(topic):
     """
     Subscribes to a topic and prints all messages received.
@@ -131,7 +197,7 @@ def topic_pub(topic, msg, rate):
 
 
 @topic.command("hz")
-@click.argument("topic", type=click.Choice(node.get_topics().keys()))
+@click.argument("topic", type=CustomChoice(node.get_topics().keys()))
 def topic_hz(topic):
     """
     Measure the rate at which a topic is published.
