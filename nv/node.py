@@ -938,6 +938,7 @@ class Node:
                 """
                 self._response_received.wait(timeout)
                 self._response_received.clear()
+                return self
 
             def done(self):
                 """
