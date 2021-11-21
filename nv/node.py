@@ -770,8 +770,7 @@ class Node:
         """
         ### Create a looping timer in a new thread.
 
-        Differs from using `nv.timer.LoopTimer` directly as it automatically
-        terminates the timer when the node is destroyed.
+        This is equivalent to using `nv.timer.LoopTimer` directly.
 
         Additional args and kwargs are passed to the function.
 
@@ -791,7 +790,6 @@ class Node:
             function=function,
             autostart=autostart,
             immediate=immediate,
-            termination_event=self.stopped,
             *args,
             **kwargs,
         )

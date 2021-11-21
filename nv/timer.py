@@ -12,9 +12,7 @@ All Rights Reserved
 """
 
 import typing
-from threading import Timer, Event, Thread
-
-OneShotTimer = Timer
+from threading import Thread, Event
 
 
 class LoopTimer:
@@ -24,12 +22,11 @@ class LoopTimer:
         function: typing.Callable,
         autostart: bool = True,
         immediate: bool = False,
-        termination_event: Event = None,
         *args,
         **kwargs
     ):
         """
-        ### Call a function repeatedly every 'interval' seconds.
+        ### Call a function repeatedly every `interval` seconds.
 
         ---
 
@@ -44,19 +41,11 @@ class LoopTimer:
         """
 
         self.stopped = Event()
-        self._termination_event = termination_event
         self.interval = interval
         self.function = function
         self.immediate = immediate
         self.args = args
         self.kwargs = kwargs
-
-        # If the termination event exists, we want to 'attach' it to the
-        # self.stopped event. This is so that a termination event will
-        # immediately trigger the self.stopped event, and terminate the timer.
-        if termination_event:
-            self._termination_thread = Thread(target=self._termination_event_checker)
-            self._termination_thread.start()
 
         if autostart:
             self.start()
@@ -65,14 +54,6 @@ class LoopTimer:
         while not self.stopped.wait(self.interval):
             self.function(*self.args, **self.kwargs)
 
-    def _termination_event_checker(self):
-        """
-        Couple the termination event to the stop method, so that as soon as the
-        termination event is set, the timer is stopped.
-        """
-        self._termination_event.wait()
-        self.stop()
-
     def start(self):
         """
         Manually start the timer.
@@ -80,7 +61,7 @@ class LoopTimer:
         if self.immediate:
             self.function(*self.args, **self.kwargs)
 
-        self._run_thread = Thread(target=self._run)
+        self._run_thread = Thread(target=self._run, daemon=True)
         self._run_thread.start()
 
     def stop(self):
@@ -88,3 +69,51 @@ class LoopTimer:
         Manually stop the timer.
         """
         self.stopped.set()
+
+
+# def ratelimit(limit: int, every: float = 1.0, droppy: bool = False):
+#     """
+#     ### Function decorator which limits function calls to a specified rate.
+
+#     ---
+
+#     ### Parameters:
+#         - limit (int): The maximum number of calls to allow.
+#         - every (float): The time in seconds to allow between calls.
+#         - droppy (bool): Whether to drop calls if the rate limit is reached.
+
+#     ### Returns:
+#         - The wrapped function.
+
+#     ### Example::
+
+#         @ratelimit(5, 1.0)
+#         def spam():
+#             print("Spam!")
+
+#         spam()
+#     """
+
+#     def limitdecorator(fn):
+#         if droppy:
+#             semaphore = Semaphore(limit + 1)
+#         else:
+#             semaphore = Semaphore(limit)
+
+#         @wraps(fn)
+#         def wrapper(*args, **kwargs):
+#             if droppy:
+#                 if not semaphore.acquire(blocking=False):
+#                     return
+#             else:
+#                 semaphore.acquire()
+#             try:
+#                 return fn(*args, **kwargs)
+#             finally:  # don't catch but ensure semaphore release
+#                 timer = Timer(every, semaphore.release)
+#                 timer.setDaemon(True)  # allows the timer to be canceled on exit
+#                 timer.start()
+
+#         return wrapper
+
+#     return limitdecorator
