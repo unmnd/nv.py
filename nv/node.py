@@ -754,17 +754,19 @@ class Node:
         """
         ### Publish a message to a topic.
 
-        The data is published on the corresponding pubsub channel, but if
-        `synchronous==True`, it's also saved to the database with the topic as
-        the redis key. This allows either synchronous or asynchronous access to
-        the data.
+        By default the data is published on the corresponding pubsub channel,
+        but if `synchronous==True`, it's instead saved to the database with the
+        topic as the redis key.
+
+        Access must be done by corresponding asynchronous
+        (`create_subscription`) or synchronous (`get_latest_message`) methods.
 
         ---
 
         ### Parameters:
             `topic_name` (str): The name of the topic to publish to.
             `message`: The message to publish.
-            `synchronous` (bool): Whether to also allow synchronous access.
+            `synchronous` (bool): Whether to allow synchronous access.
 
         ---
 
@@ -775,17 +777,17 @@ class Node:
         # Update the publishers dict
         self._publishers[topic_name] = time.time()
 
-        # Save the data to Redis
         if synchronous:
-            self._redis_topics.set(
+            # Save the data to Redis
+            return self._redis_topics.set(
                 topic_name,
                 self._encode_pubsub_message({"message": message, "age": time.time()}),
             )
-
-        # Send the message to the Redis pubsub
-        return self._redis_topics.publish(
-            topic_name, self._encode_pubsub_message(message)
-        )
+        else:
+            # Send the message to the Redis pubsub
+            return self._redis_topics.publish(
+                topic_name, self._encode_pubsub_message(message)
+            )
 
     def create_loop_timer(
         self,
