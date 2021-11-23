@@ -25,11 +25,25 @@ import typing
 import uuid
 
 import numpy as np
+import Pyro4
 import quaternion  # This need to be imported to extend np
 import redis
 import yaml
 
 from nv import exceptions, logger, timer, version
+
+
+@Pyro4.expose
+@Pyro4.behavior(instance_mode="single")
+class PyroData(object):
+    """
+    This object is used specially to expose data and methods over Pyro4.
+    """
+
+    services = {}
+
+    def call(self, service_id, *args, **kwargs):
+        return self.services[service_id](*args, **kwargs)
 
 
 class Node:
@@ -191,8 +205,22 @@ class Node:
             Node._pubsub_thread
         except AttributeError:
             Node._pubsub_thread = threading.Thread(
-                target=self._pubsub_loop, daemon=True
+                target=self._pubsub_loop, daemon=True, name="Pubsub Loop"
             )
+
+        # Register Pyro4 service object
+        self._pyro_daemon = Pyro4.Daemon()
+        self._pyro_data = PyroData()
+        self._pyro_uri = self._pyro_daemon.register(self._pyro_data)
+        self.log.debug(f"Pyro uri: {self._pyro_uri}")
+        self._pyro_proxies = {}
+        self._pyro_service_cache = {}
+
+        # Create daemon loop thread
+        self._pyro4_daemon_thread = threading.Thread(
+            target=self._pyro_daemon.requestLoop, daemon=True, name="Pyro Daemon Loop"
+        )
+        self._pyro4_daemon_thread.start()
 
     def _register_node(self):
         """
@@ -851,69 +879,6 @@ class Node:
 
         return services
 
-    def create_service(self, service_name: str, callback_function: typing.Callable):
-        """
-        ### Create a service.
-
-        A service is a function which can be called by other nodes. It can
-        accept any number of args and kwargs, and can return any Python
-        datatype.
-
-        If there is an exception during the execution of the service, the caller
-        will receive `None` as the result. Be careful if your service returns
-        `None` under normal operation.
-
-        ---
-
-        ### Parameters:
-            - `service_name` (str): The name of the service to create.
-            - `callback_function` (function): The function to call when a message
-                is received on the service.
-
-        ---
-
-        ### Example::
-
-            # Create a service called "test"
-            def callback_function(message):
-                print(message)
-
-            create_service("test", callback_function)
-        """
-
-        def handle_service_callback(message):
-            """
-            Used to handle requests to call a service, and respond by publishing
-            any data on the requested topic.
-            """
-
-            # Get the response topic from the message
-            response_topic = message.get("response_topic")
-
-            # Get args and kwargs from the message
-            args = message.get("args", [])
-            kwargs = message.get("kwargs", {})
-
-            # Call the service
-            try:
-                result = callback_function(*args, **kwargs)
-            except Exception as e:
-                self.log.error(f"Error calling service '{service_name}'", exc_info=e)
-                self.publish(response_topic, None)
-                return
-
-            # Publish the result on the response topic
-            self.publish(response_topic, result)
-
-        # Generate a unique ID for the service
-        service_id = "srv://" + str(uuid.uuid4())
-
-        # Register a message handler for the service
-        self.create_subscription(service_id, handle_service_callback)
-
-        # Save the service name and ID
-        self._services[service_name] = service_id
-
     def wait_for_service_ready(self, service_name: str, timeout: int = 10):
         """
         ### Wait for a service to be ready.
@@ -944,6 +909,42 @@ class Node:
 
         return True
 
+    def create_service(self, service_name: str, callback_function: typing.Callable):
+        """
+        ### Create a service.
+
+        A service is a function which can be called by other nodes. It can
+        accept any number of args and kwargs, and can return any Python
+        datatype.
+
+        If there is an exception during the execution of the service, the caller
+        will receive `None` as the result. Be careful if your service returns
+        `None` under normal operation.
+
+        ---
+
+        ### Parameters:
+            - `service_name` (str): The name of the service to create.
+            - `callback_function` (function): The function to call when a message
+                is received on the service.
+
+        ---
+
+        ### Example::
+
+            # Create a service called "test"
+            def callback_function(message):
+                print(message)
+
+            create_service("test", callback_function)
+        """
+
+        # Add the function to the PyroData class
+        self._pyro_data.services[service_name] = callback_function
+
+        # Save the service name and ID
+        self._services[service_name] = self._pyro_uri
+
     def call_service(self, service_name: str, *args, **kwargs):
         """
         ### Call a service.
@@ -958,11 +959,7 @@ class Node:
         ---
 
         ### Returns:
-            A client which can be used to wait for the response.
-
-            Methods:
-                - `client.wait()`: Wait for the response.
-                - `client.get_response()`: Get the response.
+            The result of the service.
         ---
 
         ### Raises:
@@ -973,46 +970,14 @@ class Node:
         ### Example::
 
             # Call the service "test"
-            future = call_service("test", "Hello", "World")
-
-            # Wait for the response
-            future.wait()
-
-            # Get the response
-            response = future.get_response()
+            response = call_service("test", "Hello", "World")
         """
 
-        class ServiceClient:
-            def __init__(self):
-                self._response = None
-                self._response_received = threading.Event()
+        # Check if the service has already been cached
+        if service_name in self._pyro_service_cache:
 
-            def wait(self, timeout: float = None):
-                """
-                Wait for the response.
-                """
-                self._response_received.wait(timeout)
-                self._response_received.clear()
-                return self
-
-            def done(self):
-                """
-                Check if the response has been received.
-                """
-                return self._response_received.is_set()
-
-            def get_response(self):
-                """
-                Get the response.
-                """
-                return self._response
-
-            def _response_callback(self, message):
-                """
-                Used to handle the response to a service call.
-                """
-                self._response = message
-                self._response_received.set()
+            uri = self._pyro_service_cache[service_name]
+            return self._pyro_proxies[uri].call(service_name, *args, **kwargs)
 
         # Get all the services currently registered
         services = self.get_services()
@@ -1023,30 +988,19 @@ class Node:
                 f"Service '{service_name}' does not exist"
             )
 
-        # Get the service ID
-        service_id = services[service_name]
+        # Get the service uri
+        uri = services[service_name]
 
-        # Generate a unique ID for the response topic
-        response_topic = "srv://" + str(uuid.uuid4())
+        # See if a proxy already exists for the pyro_id
+        if str(uri) not in self._pyro_proxies:
+            # Create a proxy for the pyro_id
+            self._pyro_proxies[str(uri)] = Pyro4.Proxy(uri)
 
-        # Create a message to send to the service
-        message = {
-            "response_topic": response_topic,
-            "args": args,
-            "kwargs": kwargs,
-        }
+        # Cache the uri for next time
+        self._pyro_service_cache[service_name] = str(uri)
 
-        # Create a client to wait for the response
-        client = ServiceClient()
-
-        # Subscribe to the response topic
-        self.create_subscription(response_topic, client._response_callback)
-
-        # Publish the message to the service
-        self.publish(service_id, message)
-
-        # Return the client
-        return client
+        # Call the service
+        return self._pyro_proxies[str(uri)].call(service_name, *args, **kwargs)
 
     def get_parameter(
         self, name: str, node_name: str = None, fail_if_not_found: bool = False

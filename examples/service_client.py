@@ -13,17 +13,13 @@ class OddEvenCheckClient(Node):
         # kwargs can be passed afterwards. Ensure the arguments match what is
         # expected by the service server!
         try:
-            self.future = self.call_service("odd_even_check", number=5)
+            result = self.call_service("odd_even_check", number=5)
         except nv.exceptions.ServiceNotFoundException:
             self.log.error(f"Service not found: odd_even_check")
             self.destroy_node()
-            exit()
-
-        # Wait until a response has been received
-        self.future.wait(timeout=5)
 
         # Get the response
-        self.log.info(f"Result: The number was {self.future.get_response()}!")
+        self.log.info(f"Result: The number was {result}!")
 
 
 def main():

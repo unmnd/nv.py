@@ -169,13 +169,10 @@ def test_services():
     assert service_client.wait_for_service_ready("example_service")
 
     # Calling a service
-    future = service_client.call_service("example_service", "test", kwarg="test")
-
-    # Wait for the future to complete
-    future.wait(timeout=5)
-
-    # Check the result
-    assert future.get_response() == "testtest"
+    assert (
+        service_client.call_service("example_service", "test", kwarg="test")
+        == "testtest"
+    )
 
     service_server.destroy_node()
     service_client.destroy_node()

@@ -19,6 +19,7 @@ setup(
         # "scipy==1.7.2",
         "numpy-quaternion==2021.11.4.15.26.3",
         "requests==2.26.0",
+        "pyro4==4.81"
     ],
     python_requires=">=3.8",
     entry_points={"console_scripts": ["nv=nv.__main__:main"]},

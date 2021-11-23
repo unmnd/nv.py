@@ -23,7 +23,7 @@ class LoopTimer:
         autostart: bool = True,
         immediate: bool = False,
         *args,
-        **kwargs
+        **kwargs,
     ):
         """
         ### Call a function repeatedly every `interval` seconds.
@@ -61,7 +61,11 @@ class LoopTimer:
         if self.immediate:
             self.function(*self.args, **self.kwargs)
 
-        self._run_thread = Thread(target=self._run, daemon=True)
+        self._run_thread = Thread(
+            target=self._run,
+            daemon=True,
+            name=f"LoopTimer for `{self.function.__name__}`",
+        )
         self._run_thread.start()
 
     def stop(self):
