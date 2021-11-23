@@ -70,6 +70,22 @@ def test_messaging():
     publisher_node.destroy_node()
 
 
+def test_synchronous_messaging():
+    node = Node("publisher_node", skip_registration=True)
+
+    msg = "Hello World"
+
+    node.publish("hello_world", msg, synchronous=True)
+
+    assert node.get_latest_message("hello_world") == msg
+
+    time.sleep(1)
+
+    assert node.get_latest_message("hello_world", max_age=1) is None
+
+    node.destroy_node()
+
+
 def test_large_data_messaging():
     subscriber_node = Subscriber()
     publisher_node = Node("publisher_node", skip_registration=True)

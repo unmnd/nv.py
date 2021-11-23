@@ -688,7 +688,7 @@ class Node:
 
         return Subscription(topic_name, callback_function)
 
-    def get_latest_message(self, topic_name: str):
+    def get_latest_message(self, topic_name: str, max_age: float = None):
         """
         ### Get the latest message received on a topic.
 
@@ -696,22 +696,38 @@ class Node:
         allows for a node to fetch data only when it is required, and without
         needing to rate limit messages received in a callback.
 
-        A limit with using this method is that there is no indication of how old
-        the data is; which might cause issues with time-critical applications.
+        This method can only get messages which were published with the
+        `synchronous` flag set to True.
 
         ---
 
         ### Parameters:
-            - `topic_name` (str): The name of the topic to get the latest message
-                from.
+            - `topic_name` (str): The name of the topic to get the latest
+                message from.
+            - `max_age` (float): The maximum age in seconds of the message to
+                return. If `None`, the latest message is returned regardless.
 
         ---
 
         ### Returns:
             The latest message received on the topic, or `None` if no messages
-            have been received.
+            have been received or the latest message is too old.
         """
-        return self._redis_topics.get(topic_name)
+
+        message = self._redis_topics.get(topic_name)
+
+        if message is None:
+            return None
+
+        message = self._decode_pubsub_message(message)
+
+        # Check if the message is not too old
+        if max_age is not None:
+            if time.time() - message["age"] > max_age:
+                return None
+
+        else:
+            return message["message"]
 
     def destroy_subscription(self, topic_name: str):
         """
@@ -734,15 +750,21 @@ class Node:
         if topic_name in self._subscriptions:
             del self._subscriptions[topic_name]
 
-    def publish(self, topic_name: str, message):
+    def publish(self, topic_name: str, message, synchronous: bool = False):
         """
         ### Publish a message to a topic.
+
+        The data is published on the corresponding pubsub channel, but if
+        `synchronous==True`, it's also saved to the database with the topic as
+        the redis key. This allows either synchronous or asynchronous access to
+        the data.
 
         ---
 
         ### Parameters:
             `topic_name` (str): The name of the topic to publish to.
             `message`: The message to publish.
+            `synchronous` (bool): Whether to also allow synchronous access.
 
         ---
 
@@ -752,6 +774,13 @@ class Node:
 
         # Update the publishers dict
         self._publishers[topic_name] = time.time()
+
+        # Save the data to Redis
+        if synchronous:
+            self._redis_topics.set(
+                topic_name,
+                self._encode_pubsub_message({"message": message, "age": time.time()}),
+            )
 
         # Send the message to the Redis pubsub
         return self._redis_topics.publish(
