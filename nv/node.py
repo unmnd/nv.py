@@ -208,6 +208,12 @@ class Node:
                 target=self._pubsub_loop, daemon=True, name="Pubsub Loop"
             )
 
+        # Change Pyro serialiser to support numpy arrays
+        Pyro4.config.SERIALIZER = "pickle"
+        Pyro4.config.SERIALIZERS_ACCEPTED = set(
+            ["pickle", "json", "marshal", "serpent"]
+        )
+
         # Register Pyro4 service object
         self._pyro_daemon = Pyro4.Daemon()
         self._pyro_data = PyroData()

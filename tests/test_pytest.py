@@ -16,6 +16,7 @@ import os
 import pathlib
 import time
 import uuid
+import numpy as np
 
 from nv.node import Node
 
@@ -36,9 +37,13 @@ class ServiceServer(Node):
         # You can't skip registration on service servers
         super().__init__("service_server" + str(uuid.uuid4()))
         self.srv = self.create_service("example_service", self.example_service)
+        self.srv_numpy = self.create_service("numpy_service", self.numpy_service)
 
     def example_service(self, arg: str, kwarg: str = None):
         return arg + kwarg
+
+    def numpy_service(self):
+        return np.array([1, 2, 3])
 
 
 class ConditionalNode(Node):
@@ -165,13 +170,18 @@ def test_services():
     service_server = ServiceServer()
     service_client = Node("service_client", skip_registration=True)
 
-    # Wait for the service to be active
+    # Wait for the services to be active
     assert service_client.wait_for_service_ready("example_service")
+    assert service_client.wait_for_service_ready("numpy_service")
 
     # Calling a service
     assert (
         service_client.call_service("example_service", "test", kwarg="test")
         == "testtest"
+    )
+
+    assert np.array_equal(
+        service_client.call_service("numpy_service"), np.array([1, 2, 3])
     )
 
     service_server.destroy_node()
