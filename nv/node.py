@@ -26,6 +26,7 @@ import uuid
 
 import numpy as np
 import Pyro4
+import Pyro4.errors
 import quaternion  # This need to be imported to extend np
 import redis
 import yaml
@@ -983,7 +984,12 @@ class Node:
         if service_name in self._pyro_service_cache:
 
             uri = self._pyro_service_cache[service_name]
-            return self._pyro_proxies[uri].call(service_name, *args, **kwargs)
+
+            try:
+                return self._pyro_proxies[uri].call(service_name, *args, **kwargs)
+            except Pyro4.errors.ConnectionClosedError:
+                self.log.debug("A previously cached service no longer exists...")
+                del self._pyro_service_cache[service_name]
 
         # Get all the services currently registered
         services = self.get_services()
