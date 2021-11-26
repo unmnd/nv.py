@@ -6,6 +6,7 @@ class Publisher(Node):
         super().__init__("publisher_node")
 
         # To continuously publish at a defined rate, we can use a loop timer.
+        self.counter = 0
         self.timer = self.create_loop_timer(
             interval=1.0, function=self.publish_hello_world
         )
@@ -13,8 +14,6 @@ class Publisher(Node):
         # Alternatively, we can just publish on any topic, at any time.
         # No limitations!
         self.publish("another_topic", ["Python", "objects", "work", "as", "well!"])
-
-        self.counter = 0
 
     def publish_hello_world(self):
         # The `publish` method is used to publish a message to a topic.

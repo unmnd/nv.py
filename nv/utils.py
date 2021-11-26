@@ -11,6 +11,8 @@ UNMND, Ltd. 2021
 All Rights Reserved
 """
 
+import cProfile
+import pstats
 import time
 import typing
 from threading import Event, Thread
@@ -84,10 +86,10 @@ class LoopTimer:
 
 
 def time_func(
-    func: typing.Callable, print_function: typing.Callable = None, *args, **kwargs
+    func: typing.Callable, print_function: typing.Callable = print, *args, **kwargs
 ):
     """
-    ### Decorator to time execution time of a function.
+    ### Time execution time of a function.
 
     ---
 
@@ -98,21 +100,51 @@ def time_func(
         - `kwargs`: The keyword arguments to pass to the function.
     """
 
-    def wrapper(*args, **kwargs):
-        start = time.time()
-        result = func(*args, **kwargs)
-        end = time.time()
+    start = time.time()
+    result = func(*args, **kwargs)
+    end = time.time()
 
-        # Convert duration to human readable
-        duration, prefix, suffix = format_duration(start, end)
+    # Convert duration to human readable
+    duration, prefix, suffix = format_duration(start, end)
 
-        if print_function:
-            print_function(f"{func.__name__} took {duration}")
-        else:
-            print(f"{func.__name__} took {duration}")
-        return result
+    print_function(f"{func.__name__} took {duration}")
 
-    return wrapper
+    return result
+
+
+def profile_func(
+    func: typing.Callable,
+    *args,
+    print_function: typing.Callable = print,
+    **kwargs,
+):
+    """
+    ### Profile execution time of a function.
+
+    ---
+
+    ### Parameters:
+        - `func` (callable): The function to time.
+        - `print_function` (callable): Replace `print` with a custom function.
+        - `args`: The arguments to pass to the function.
+        - `kwargs`: The keyword arguments to pass to the function.
+    """
+
+    pr = cProfile.Profile()
+    pr.enable()
+
+    result = func(*args, **kwargs)
+
+    pr.disable()
+    sortby = pstats.SortKey.CUMULATIVE
+    ps = pstats.Stats(pr).sort_stats(sortby)
+
+    # Override print function
+    pstats.print = print_function
+
+    ps.print_stats()
+
+    return result
 
 
 def format_duration(time_1: float, time_2: float) -> typing.Tuple[str, str, str]:
