@@ -987,7 +987,7 @@ class Node:
 
             try:
                 return self._pyro_proxies[uri].call(service_name, *args, **kwargs)
-            except Pyro4.errors.ConnectionClosedError:
+            except Pyro4.errors.CommunicationError:
                 self.log.debug("A previously cached service no longer exists...")
                 del self._pyro_service_cache[service_name]
 
