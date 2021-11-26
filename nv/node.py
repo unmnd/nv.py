@@ -31,7 +31,7 @@ import quaternion  # This need to be imported to extend np
 import redis
 import yaml
 
-from nv import exceptions, logger, timer, version
+from nv import exceptions, logger, utils, version
 
 
 @Pyro4.expose
@@ -836,7 +836,7 @@ class Node:
         """
         ### Create a looping timer in a new thread.
 
-        This is equivalent to using `nv.timer.LoopTimer` directly.
+        This is equivalent to using `nv.utils.LoopTimer` directly.
 
         Additional args and kwargs are passed to the function.
 
@@ -851,7 +851,7 @@ class Node:
 
         """
 
-        loop_timer = timer.LoopTimer(
+        loop_timer = utils.LoopTimer(
             interval=interval,
             function=function,
             autostart=autostart,
@@ -1553,71 +1553,6 @@ class Node:
         if self.set_parameters(parameters):
             self.log.info("Parameters set successfully.")
             return True
-
-    def format_duration(
-        self, time_1: float, time_2: float
-    ) -> typing.Tuple[str, str, str]:
-        """
-        ### Format a duration between two unix timestamps into a human-readable string.
-
-        It works in the form `time_1` to `time_2`; meaning if `time_2` <
-        `time_1`, the duration is "in the past". Likewise, if `time_1` <
-        `time_2` the duration is "in the future".
-
-        Formats to seconds, hours, and days as long as they are > 0.
-
-        ---
-
-        ### Parameters:
-            - `time_1` (float): The first timestamp.
-            - `time_2` (float): The second timestamp.
-
-        ---
-
-        ### Returns:
-            - A human-readable string representing the duration.
-            - The prefix, "was" or "is" if required.
-            - The suffix, "ago" or "from now".
-
-        ---
-
-        ### Example::
-
-            # Get the duration between two timestamps
-            duration, prefix, suffix = format_duration(time.time(), example_timestamp)
-
-            # Display how long ago an event was
-            print(f"This event {prefix} {duration} {suffix}")
-
-        """
-
-        # Get the duration
-        duration = time_2 - time_1
-
-        # If the duration is negative, the second time is in the past
-        if duration < 0:
-            prefix = "was"
-            suffix = "ago"
-            duration = -duration
-
-        # If the duration is positive, the second time is in the future
-        else:
-            prefix = "is"
-            suffix = "from now"
-
-        # Format the duration as a human-readable string
-        if duration < 1:
-            duration = f"{duration * 1000:.0f}ms"
-        elif duration < 60:
-            duration = f"{duration:.0f}s"
-        elif duration < 3600:
-            duration = f"{duration / 60:.0f}m"
-        elif duration < 86400:
-            duration = f"{duration / 3600:.0f}h"
-        else:
-            duration = f"{duration / 86400:.0f}d"
-
-        return duration, prefix, suffix
 
     """
     --- TRANSFORMS ---

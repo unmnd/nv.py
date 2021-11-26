@@ -166,7 +166,7 @@ def topic_list():
 
     # Format their timestamps nicely
     for topic in topics:
-        duration, prefix, suffix = node.format_duration(time.time(), topics[topic])
+        duration, prefix, suffix = nv.utils.format_duration(time.time(), topics[topic])
         topics[topic] = f"Last message {prefix} {duration} {suffix}"
 
     click.echo(json.dumps(topics, indent=4))
