@@ -50,7 +50,7 @@ class PyroData(object):
 class Node:
     def __init__(
         self,
-        name: str,
+        name: str = None,
         skip_registration: bool = False,
         log_level: int = None,
         keep_old_parameters: bool = False,
@@ -83,6 +83,10 @@ class Node:
         # Bind callbacks to gracefully exit the node on signal
         signal.signal(signal.SIGINT, self._sigterm_handler)
         signal.signal(signal.SIGTERM, self._sigterm_handler)
+
+        # Generate a random name if one is not specified
+        if name is None:
+            name = utils.generate_name()
 
         # Initialise logger
         self.log = logger.generate_log(

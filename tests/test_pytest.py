@@ -35,7 +35,7 @@ class Subscriber(Node):
 class ServiceServer(Node):
     def __init__(self):
         # You can't skip registration on service servers
-        super().__init__("service_server" + str(uuid.uuid4()))
+        super().__init__()
         self.srv = self.create_service("example_service", self.example_service)
         self.srv_numpy = self.create_service("numpy_service", self.numpy_service)
 
@@ -51,7 +51,7 @@ class ConditionalNode(Node):
 
         self.counter = 0
 
-        super().__init__("conditional_node", skip_registration=True)
+        super().__init__(skip_registration=True)
 
     def node_condition(self):
         self.counter += 1
@@ -60,7 +60,7 @@ class ConditionalNode(Node):
 
 def test_messaging():
     subscriber_node = Subscriber()
-    publisher_node = Node("publisher_node", skip_registration=True)
+    publisher_node = Node(skip_registration=True)
 
     msg = "Hello World"
 
@@ -76,7 +76,7 @@ def test_messaging():
 
 
 def test_synchronous_messaging():
-    node = Node("publisher_node", skip_registration=True)
+    node = Node(skip_registration=True)
 
     msg = "Hello World"
 
@@ -93,7 +93,7 @@ def test_synchronous_messaging():
 
 def test_large_data_messaging():
     subscriber_node = Subscriber()
-    publisher_node = Node("publisher_node", skip_registration=True)
+    publisher_node = Node(skip_registration=True)
 
     msg = ["Hello World" for _ in range(100000)]
 
@@ -168,7 +168,7 @@ def test_parameters():
 
 def test_services():
     service_server = ServiceServer()
-    service_client = Node("service_client", skip_registration=True)
+    service_client = Node(skip_registration=True)
 
     # Wait for the services to be active
     assert service_client.wait_for_service_ready("example_service")
