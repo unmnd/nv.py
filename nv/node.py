@@ -223,10 +223,8 @@ class Node:
         self._pyro_daemon = Pyro4.Daemon()
         self._pyro_data = PyroData()
 
-        _pyro_uri = self._pyro_daemon.register(self._pyro_data)
-        Pyro4.locateNS().register(self.name, _pyro_uri)
-
-        self.log.debug(f"Pyro uri: {_pyro_uri}")
+        self._pyro_uri = self._pyro_daemon.register(self._pyro_data)
+        self.log.debug(f"Pyro uri: {self._pyro_uri}")
 
         self._pyro_proxies = {}
         self._pyro_service_cache = {}
@@ -958,7 +956,7 @@ class Node:
         self._pyro_data.services[service_name] = callback_function
 
         # Save the service
-        self._services[service_name] = self.name
+        self._services[service_name] = self._pyro_uri
 
     def call_service(self, service_name: str, *args, **kwargs):
         """
@@ -1008,9 +1006,7 @@ class Node:
                 f"Service '{service_name}' does not exist"
             )
 
-        return Pyro4.Proxy(f"PYRONAME:{services[service_name]}").call(
-            service_name, *args, **kwargs
-        )
+        return Pyro4.Proxy(services[service_name]).call(service_name, *args, **kwargs)
 
     def get_parameter(
         self, name: str, node_name: str = None, fail_if_not_found: bool = False
