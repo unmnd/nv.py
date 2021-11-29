@@ -41,16 +41,13 @@ WORKDIR /opt/nv
 COPY examples examples
 
 # Copy files needed to install requirements only
-COPY setup.py setup.py
-COPY nv/version.py nv/version.py
+COPY requirements.txt requirements.txt
 
-# Install requirements for the nv framework by first separating dependencies
-# from the setup.py file, then installing them.
-RUN python3 setup.py egg_info && \
-    python3 -m pip install --upgrade pip && \
-    pip3 install -r *.egg-info/requires.txt && \
-    rm -rf *.egg-info
+# Install requirements for the nv framework first
+RUN python3 -m pip install --upgrade pip && \
+    pip3 install -r requirements.txt
 
 # Then copy the rest of the nv framework and install
+COPY setup.py setup.py
 COPY nv nv
 RUN pip3 install . && rm -rf nv setup.py
