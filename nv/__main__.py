@@ -363,13 +363,19 @@ def service():
 
 
 @service.command("list")
-def service_list():
+@click.option("--verbose", "-v", is_flag=True, help="Print the full service info.")
+def service_list(verbose):
     """
     List all services.
     """
-    click.echo(
-        f"Listing services:\n" + json.dumps(list(node.get_services().keys()), indent=4)
-    )
+    if verbose:
+        services = {key: str(value) for key, value in node.get_services().items()}
+        click.echo(f"Listing services:\n" + json.dumps(services, indent=4))
+    else:
+        click.echo(
+            f"Listing services:\n"
+            + json.dumps(list(node.get_services().keys()), indent=4)
+        )
 
 
 @service.command("call")

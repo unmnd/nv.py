@@ -222,8 +222,12 @@ class Node:
         # Register Pyro4 service object
         self._pyro_daemon = Pyro4.Daemon()
         self._pyro_data = PyroData()
-        self._pyro_uri = self._pyro_daemon.register(self._pyro_data)
-        self.log.debug(f"Pyro uri: {self._pyro_uri}")
+
+        _pyro_uri = self._pyro_daemon.register(self._pyro_data)
+        Pyro4.locateNS().register(self.name, _pyro_uri)
+
+        self.log.debug(f"Pyro uri: {_pyro_uri}")
+
         self._pyro_proxies = {}
         self._pyro_service_cache = {}
 
@@ -953,8 +957,8 @@ class Node:
         # Add the function to the PyroData class
         self._pyro_data.services[service_name] = callback_function
 
-        # Save the service name and ID
-        self._services[service_name] = self._pyro_uri
+        # Save the service
+        self._services[service_name] = self.name
 
     def call_service(self, service_name: str, *args, **kwargs):
         """
@@ -1004,19 +1008,9 @@ class Node:
                 f"Service '{service_name}' does not exist"
             )
 
-        # Get the service uri
-        uri = services[service_name]
-
-        # See if a proxy already exists for the pyro_id
-        if str(uri) not in self._pyro_proxies:
-            # Create a proxy for the pyro_id
-            self._pyro_proxies[str(uri)] = Pyro4.Proxy(uri)
-
-        # Cache the uri for next time
-        self._pyro_service_cache[service_name] = str(uri)
-
-        # Call the service
-        return self._pyro_proxies[str(uri)].call(service_name, *args, **kwargs)
+        return Pyro4.Proxy(f"PYRONAME:{services[service_name]}").call(
+            service_name, *args, **kwargs
+        )
 
     def get_parameter(
         self, name: str, node_name: str = None, fail_if_not_found: bool = False
