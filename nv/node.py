@@ -22,7 +22,6 @@ import sys
 import threading
 import time
 import typing
-import uuid
 
 import numpy as np
 import Pyro4
@@ -223,7 +222,7 @@ class Node:
         self._pyro_daemon = Pyro4.Daemon()
         self._pyro_data = PyroData()
 
-        self._pyro_uri = self._pyro_daemon.register(self._pyro_data)
+        self._pyro_uri = str(self._pyro_daemon.register(self._pyro_data))
         self.log.debug(f"Pyro uri: {self._pyro_uri}")
 
         self._pyro_proxies = {}
@@ -249,7 +248,7 @@ class Node:
             # Update the node information
             self._redis_nodes.set(
                 self.name,
-                pickle.dumps(self.get_node_information()),
+                json.dumps(self.get_node_information()),
                 ex=10,
             )
 
@@ -542,7 +541,7 @@ class Node:
                 "services": self._services,
             }
         else:
-            return pickle.loads(self._redis_nodes.get(node_name))
+            return json.loads(self._redis_nodes.get(node_name))
 
     def get_nodes(self) -> typing.Dict[str, dict]:
         """
@@ -554,7 +553,7 @@ class Node:
             A dictionary containing all nodes on the network.
         """
         return {
-            node.decode(): pickle.loads(self._redis_nodes.get(node))
+            node.decode(): json.loads(self._redis_nodes.get(node))
             for node in self._redis_nodes.keys()
         }
 
