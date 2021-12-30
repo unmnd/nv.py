@@ -269,6 +269,15 @@ class Node:
         Deregister the node with the server.
         """
 
+        if not self.node_registered:
+            self.log.warning(
+                f"Node '{self.name}' is not registered, cannot deregister!"
+            )
+            return
+
+        # Stop the node information renewal timer
+        self._renew_node_information_timer.stop()
+
         # Delete the node information from the nodes database
         self._redis_nodes.delete(self.name)
 
@@ -383,7 +392,12 @@ class Node:
         ### Returns:
             The decoded message.
         """
-        return pickle.loads(message)
+
+        # Try to decode the message as a string
+        try:
+            return json.loads(message.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return message
 
     def _encode_pubsub_message(self, message):
         """
@@ -399,7 +413,12 @@ class Node:
         ### Returns:
             The encoded message.
         """
-        return pickle.dumps(message)
+
+        # Try to encode using json
+        try:
+            return json.dumps(message)
+        except TypeError:
+            return message
 
     def _handle_subscription_callback(self, message):
         """
@@ -1058,7 +1077,7 @@ class Node:
 
         # Extract the value from the parameter if it exists
         if parameter is not None:
-            return pickle.loads(parameter).get("value")
+            return json.loads(parameter).get("value")
 
         # Otherwise return None
         return None
@@ -1149,7 +1168,7 @@ class Node:
 
         # Extract the value from the parameter if it exists
         if parameter is not None:
-            return pickle.loads(parameter).get("description")
+            return json.loads(parameter).get("description")
 
         # Otherwise return None
         return None
@@ -1202,7 +1221,7 @@ class Node:
         # Set the parameter on the parameter server
         return self._redis_parameters.set(
             f"{node_name}.{name}",
-            pickle.dumps(
+            json.dumps(
                 {
                     "value": value,
                     "description": description,
@@ -1266,7 +1285,7 @@ class Node:
         for parameter in parameters:
             pipe.set(
                 f"{parameter['node_name']}.{parameter['name']}",
-                pickle.dumps(
+                json.dumps(
                     {
                         "value": parameter["value"],
                         "description": parameter["description"],
