@@ -202,7 +202,8 @@ class Node:
         # requests to respond to the same topic (meaning only one subscription).
         # The queue keys are a unique request id, and the values contain a dict:
         # {
-        #     "data": <response data>,
+        #     "result": "success"/"error"
+        #     "data": <response data>/<error message>,
         #     "event": Event()
         # }
         self._service_requests = {}
@@ -461,11 +462,8 @@ class Node:
             `None`
         """
 
-        # If the result was an error, raise an exception
-        if message.get("result") == "error":
-            raise Exception(message.get("data"))
-
         # Save the result
+        self._service_requests[message["request_id"]]["result"] = message["result"]
         self._service_requests[message["request_id"]]["data"] = message["data"]
 
         # Set the event to indicate the response has been received
@@ -908,10 +906,6 @@ class Node:
         accept any number of args and kwargs, and can return any Python
         datatype.
 
-        If there is an exception during the execution of the service, the caller
-        will receive `None` as the result. Be careful if your service returns
-        `None` under normal operation.
-
         ---
 
         ### Parameters:
@@ -1046,6 +1040,12 @@ class Node:
         if not self._service_requests[request_id]["event"].is_set():
             raise exceptions.ServiceTimeoutException(
                 f"Service '{service_name}' timed out"
+            )
+
+        # Check for errors
+        if self._service_requests[request_id]["result"] == "error":
+            raise exceptions.ServiceErrorException(
+                f"Service '{service_name}' returned an error: {self._service_requests[request_id]['data']}"
             )
 
         # Extract the data

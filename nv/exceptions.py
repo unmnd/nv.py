@@ -28,6 +28,10 @@ class ServiceTimeoutException(Exception):
     ...
 
 
+class ServiceErrorException(Exception):
+    ...
+
+
 class TransformExistsException(Exception):
     ...
 
