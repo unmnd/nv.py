@@ -17,6 +17,7 @@ class OddEvenCheckClient(Node):
         except nv.exceptions.ServiceNotFoundException:
             self.log.error(f"Service not found: odd_even_check")
             self.destroy_node()
+            return
 
         # Get the response
         self.log.info(f"Result: The number was {result}!")

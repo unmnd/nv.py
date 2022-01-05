@@ -22,28 +22,14 @@ import sys
 import threading
 import time
 import typing
+import uuid
 
 import numpy as np
-import Pyro4
-import Pyro4.errors
 import quaternion  # This need to be imported to extend np
 import redis
 import yaml
 
 from nv import exceptions, logger, utils, version
-
-
-@Pyro4.expose
-@Pyro4.behavior(instance_mode="single")
-class PyroData(object):
-    """
-    This object is used specially to expose data and methods over Pyro4.
-    """
-
-    services = {}
-
-    def call(self, service_id, *args, **kwargs):
-        return self.services[service_id](*args, **kwargs)
 
 
 class Node:
@@ -212,27 +198,20 @@ class Node:
                 target=self._pubsub_loop, daemon=True, name="Pubsub Loop"
             )
 
-        # Change Pyro serialiser to support numpy arrays
-        Pyro4.config.SERIALIZER = "pickle"
-        Pyro4.config.SERIALIZERS_ACCEPTED = set(
-            ["pickle", "json", "marshal", "serpent"]
+        # The service requests dict improves efficiency by allowing all service
+        # requests to respond to the same topic (meaning only one subscription).
+        # The queue keys are a unique request id, and the values contain a dict:
+        # {
+        #     "data": <response data>,
+        #     "event": Event()
+        # }
+        self._service_requests = {}
+
+        # Generate a random id for the service response channel for this node
+        self.service_response_channel = "srv://" + str(uuid.uuid4())
+        self.create_subscription(
+            self.service_response_channel, self._handle_service_callback
         )
-
-        # Register Pyro4 service object
-        self._pyro_daemon = Pyro4.Daemon()
-        self._pyro_data = PyroData()
-
-        self._pyro_uri = str(self._pyro_daemon.register(self._pyro_data))
-        self.log.debug(f"Pyro uri: {self._pyro_uri}")
-
-        self._pyro_proxies = {}
-        self._pyro_service_cache = {}
-
-        # Create daemon loop thread
-        self._pyro4_daemon_thread = threading.Thread(
-            target=self._pyro_daemon.requestLoop, daemon=True, name="Pyro Daemon Loop"
-        )
-        self._pyro4_daemon_thread.start()
 
     def _register_node(self):
         """
@@ -455,6 +434,42 @@ class Node:
         # Call the corresponding callback(s)
         for callback in self._subscriptions[topic]:
             callback(message)
+
+    def _handle_service_callback(self, message):
+        """
+        Handle responses from server requests. This works similarly to
+        `_handle_subscription_callback`, but is specific to messages received as
+        a response to a service request.
+
+        Any response contains the following dict:
+        ```
+        {
+            "result": "success"/"error",
+            "data": <the returned data>/<the error stacktrace>,
+            "id": <the id of the request>,
+        }
+        ```
+
+        ---
+
+        ### Parameters:
+            - `message` (dict): The message to handle.
+
+        ---
+
+        ### Returns:
+            `None`
+        """
+
+        # If the result was an error, raise an exception
+        if message.get("result") == "error":
+            raise Exception(message.get("data"))
+
+        # Save the result
+        self._service_requests[message["request_id"]]["data"] = message["data"]
+
+        # Set the event to indicate the response has been received
+        self._service_requests[message["request_id"]]["event"].set()
 
     def _sigterm_handler(self, _signo, _stack_frame):
         """
@@ -970,11 +985,54 @@ class Node:
             create_service("test", callback_function)
         """
 
-        # Add the function to the PyroData class
-        self._pyro_data.services[service_name] = callback_function
+        def handle_service_callback(message):
+            """
+            Used to handle requests to call a service, and respond by publishing
+            any data on the requested topic.
+            """
 
-        # Save the service
-        self._services[service_name] = self._pyro_uri
+            # Get the response topic from the message
+            response_topic = message.get("response_topic")
+
+            # Get args and kwargs from the message
+            args = message.get("args", [])
+            kwargs = message.get("kwargs", {})
+
+            # Call the service
+            try:
+                result = callback_function(*args, **kwargs)
+            except Exception as e:
+                self.log.error(
+                    f"Error handling service call: '{service_name}'", exc_info=e
+                )
+                self.publish(
+                    response_topic,
+                    {
+                        "result": "error",
+                        "data": str(e),
+                        "request_id": message.get("request_id"),
+                    },
+                )
+                return
+
+            # Publish the result on the response topic
+            self.publish(
+                response_topic,
+                {
+                    "result": "success",
+                    "data": result,
+                    "request_id": message.get("request_id"),
+                },
+            )
+
+        # Generate a unique ID for the service
+        service_id = "srv://" + str(uuid.uuid4())
+
+        # Register a message handler for the service
+        self.create_subscription(service_id, handle_service_callback)
+
+        # Save the service name and ID
+        self._services[service_name] = service_id
 
     def call_service(self, service_name: str, *args, **kwargs):
         """
@@ -1004,17 +1062,6 @@ class Node:
             response = call_service("test", "Hello", "World")
         """
 
-        # Check if the service has already been cached
-        if service_name in self._pyro_service_cache:
-
-            uri = self._pyro_service_cache[service_name]
-
-            try:
-                return self._pyro_proxies[uri].call(service_name, *args, **kwargs)
-            except Pyro4.errors.CommunicationError:
-                self.log.debug("A previously cached service no longer exists...")
-                del self._pyro_service_cache[service_name]
-
         # Get all the services currently registered
         services = self.get_services()
 
@@ -1024,7 +1071,46 @@ class Node:
                 f"Service '{service_name}' does not exist"
             )
 
-        return Pyro4.Proxy(services[service_name]).call(service_name, *args, **kwargs)
+        # Get the service ID
+        service_id = services[service_name]
+
+        # Generate a request id
+        request_id = str(uuid.uuid4())
+
+        # Create the entry in the service requests dict
+        self._service_requests[request_id] = {
+            "data": None,
+            "event": threading.Event(),
+        }
+
+        # Create a message to send to the service
+        message = {
+            "response_topic": self.service_response_channel,
+            "request_id": request_id,
+            "args": args,
+            "kwargs": kwargs,
+        }
+
+        # Call the service
+        self.publish(service_id, message)
+
+        # Wait for the response
+        self._service_requests[request_id]["event"].wait(timeout=10)
+
+        # Handle a timeout
+        if not self._service_requests[request_id]["event"].is_set():
+            raise exceptions.ServiceTimeoutException(
+                f"Service '{service_name}' timed out"
+            )
+
+        # Extract the data
+        data = self._service_requests[request_id]["data"]
+
+        # Delete the request
+        del self._service_requests[request_id]
+
+        # Return the response
+        return data
 
     def get_parameter(
         self, name: str, node_name: str = None, fail_if_not_found: bool = False

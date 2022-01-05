@@ -24,6 +24,10 @@ class ServiceNotFoundException(Exception):
     ...
 
 
+class ServiceTimeoutException(Exception):
+    ...
+
+
 class TransformExistsException(Exception):
     ...
 
