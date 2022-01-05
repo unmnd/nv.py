@@ -762,47 +762,6 @@ class Node:
 
         return Subscription(topic_name, callback_function)
 
-    def get_latest_message(self, topic_name: str, max_age: float = None):
-        """
-        ### Get the latest message received on a topic.
-
-        Using this method is an alternative to subscribing to the topic, as it
-        allows for a node to fetch data only when it is required, and without
-        needing to rate limit messages received in a callback.
-
-        This method can only get messages which were published with the
-        `synchronous` flag set to True.
-
-        ---
-
-        ### Parameters:
-            - `topic_name` (str): The name of the topic to get the latest
-                message from.
-            - `max_age` (float): The maximum age in seconds of the message to
-                return. If `None`, the latest message is returned regardless.
-
-        ---
-
-        ### Returns:
-            The latest message received on the topic, or `None` if no messages
-            have been received or the latest message is too old.
-        """
-
-        message = self._redis_topics.get(topic_name)
-
-        if message is None:
-            return None
-
-        message = self._decode_pubsub_message(message)
-
-        # Check if the message is not too old
-        if max_age is not None:
-            if time.time() - message["age"] > max_age:
-                return None
-
-        else:
-            return message["message"]
-
     def destroy_subscription(self, topic_name: str):
         """
         ### Destroy a subscription to a topic.
@@ -824,16 +783,9 @@ class Node:
         if topic_name in self._subscriptions:
             del self._subscriptions[topic_name]
 
-    def publish(self, topic_name: str, message, synchronous: bool = False):
+    def publish(self, topic_name: str, message):
         """
         ### Publish a message to a topic.
-
-        By default the data is published on the corresponding pubsub channel,
-        but if `synchronous==True`, it's instead saved to the database with the
-        topic as the redis key.
-
-        Access must be done by corresponding asynchronous
-        (`create_subscription`) or synchronous (`get_latest_message`) methods.
 
         ---
 
@@ -851,17 +803,10 @@ class Node:
         # Update the publishers dict
         self._publishers[topic_name] = time.time()
 
-        if synchronous:
-            # Save the data to Redis
-            return self._redis_topics.set(
-                topic_name,
-                self._encode_pubsub_message({"message": message, "age": time.time()}),
-            )
-        else:
-            # Send the message to the Redis pubsub
-            return self._redis_topics.publish(
-                topic_name, self._encode_pubsub_message(message)
-            )
+        # Send the message to the Redis pubsub
+        return self._redis_topics.publish(
+            topic_name, self._encode_pubsub_message(message)
+        )
 
     def create_loop_timer(
         self,

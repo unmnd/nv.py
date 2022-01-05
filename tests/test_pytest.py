@@ -15,8 +15,6 @@ All Rights Reserved
 import os
 import pathlib
 import time
-import uuid
-import numpy as np
 
 from nv.node import Node
 
@@ -37,13 +35,13 @@ class ServiceServer(Node):
         # You can't skip registration on service servers
         super().__init__()
         self.srv = self.create_service("example_service", self.example_service)
-        self.srv_numpy = self.create_service("numpy_service", self.numpy_service)
+        self.list_srv = self.create_service("list_service", self.list_service)
 
     def example_service(self, arg: str, kwarg: str = None):
         return arg + kwarg
 
-    def numpy_service(self):
-        return np.array([1, 2, 3])
+    def list_service(self):
+        return [1, 2, 3]
 
 
 class ConditionalNode(Node):
@@ -73,22 +71,6 @@ def test_messaging():
 
     subscriber_node.destroy_node()
     publisher_node.destroy_node()
-
-
-def test_synchronous_messaging():
-    node = Node(skip_registration=True)
-
-    msg = "Hello World"
-
-    node.publish("hello_world", msg, synchronous=True)
-
-    assert node.get_latest_message("hello_world") == msg
-
-    time.sleep(1)
-
-    assert node.get_latest_message("hello_world", max_age=1) is None
-
-    node.destroy_node()
 
 
 def test_large_data_messaging():
@@ -172,7 +154,7 @@ def test_services():
 
     # Wait for the services to be active
     assert service_client.wait_for_service_ready("example_service")
-    assert service_client.wait_for_service_ready("numpy_service")
+    assert service_client.wait_for_service_ready("list_service")
 
     # Calling a service
     assert (
@@ -180,9 +162,8 @@ def test_services():
         == "testtest"
     )
 
-    assert np.array_equal(
-        service_client.call_service("numpy_service"), np.array([1, 2, 3])
-    )
+    # Calling a service with a list
+    assert service_client.call_service("list_service") == [1, 2, 3]
 
     service_server.destroy_node()
     service_client.destroy_node()
