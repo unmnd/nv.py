@@ -447,7 +447,7 @@ class Node:
         {
             "result": "success"/"error",
             "data": <the returned data>/<the error stacktrace>,
-            "id": <the id of the request>,
+            "request_id": <the id of the request>,
         }
         ```
 

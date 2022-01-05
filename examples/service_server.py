@@ -8,13 +8,17 @@ class OddEvenCheckServer(Node):
         # The `create_service` method creates a service server.
         # The first argument is the name of the service.
         # The second argument is the callback function that will be called when a client calls the service.
-        self.srv = self.create_service("odd_even_check", self.determine_odd_even)
+        self.create_service("odd_even_check", self.determine_odd_even)
 
     def determine_odd_even(self, number: int):
         # The arguments supplied can be any number of positional or keyword
         # arguments. Just make sure the node calling the service has the same arguments!
 
         self.log.info(f"Request received: {number}")
+
+        # If the number is not an integer, raise an exception
+        if not isinstance(number, int):
+            raise ValueError(f"Number is not an integer: {number}")
 
         # The response can be any Python data type, and is sent using the return keyword.
         return "even" if number % 2 == 0 else "odd"
