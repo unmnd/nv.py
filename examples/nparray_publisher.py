@@ -29,11 +29,13 @@ class Publisher(Node):
         arr_large = np.random.rand(100, 100)
         arr_uint8 = np.random.randint(0, 255, size=(20, 20), dtype=np.uint8)
         arr_bool = np.random.randint(0, 2, size=(20, 20), dtype=bool)
+        arr_uneven = np.random.randint(0, 255, size=(20, 12), dtype=np.uint8)
 
         self.publish("numpy_small", arr_small.tolist())
         self.publish("numpy_large", arr_large.tolist())
         self.publish("numpy_uint8", arr_uint8.tolist())
         self.publish("numpy_bool", arr_bool.tolist())
+        self.publish("numpy_uneven", arr_uneven.tolist())
 
 
 def main():
