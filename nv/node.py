@@ -39,6 +39,8 @@ class Node:
         skip_registration: bool = False,
         log_level: int = None,
         keep_old_parameters: bool = False,
+        redis_host: str = None,
+        redis_port: int = None,
     ):
         """
         The Node class is the main class of the nv framework. It is used to
@@ -113,8 +115,8 @@ class Node:
         # Connect redis clients
         # The topics database stores messages for communication between nodes.
         # The key is always the topic.
-        redis_host = os.environ.get("NV_REDIS_HOST")
-        redis_port = os.environ.get("NV_REDIS_PORT") or 6379
+        redis_host = redis_host or os.environ.get("NV_REDIS_HOST")
+        redis_port = redis_port or os.environ.get("NV_REDIS_PORT") or 6379
 
         self._redis_topics = self._connect_redis(
             redis_host=redis_host,
