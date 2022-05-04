@@ -1,7 +1,10 @@
 import os
+import random
 import time
 
 from nv.node import Node
+
+NUM_TESTS = 20
 
 
 test_data = {
@@ -30,6 +33,10 @@ test_data = {
     ],
     "1MB of random bytes": os.urandom(1024 * 1024),
     "10MB of random bytes": os.urandom(10 * 1024 * 1024),
+    "1D Floats Array": [random.random() for _ in range(64 * 64)],
+    "1D Integers Array": [random.randint(-32768, 32767) for _ in range(64 * 64)],
+    "2D Floats Array": [[random.random() for _ in range(64)] for _ in range(64)],
+    "Image Array": [[random.random() for _ in range(1024)] for _ in range(1024)],
 }
 
 
@@ -43,35 +50,49 @@ class PerformanceTester(Node):
             self.subscriber_callback,
         )
 
-        self.start_times = {}
-        self.durations = {}
+        self.start_times = {key: [] for key in test_data.keys()}
+        self.durations = {key: [] for key in test_data.keys()}
 
         self.waiting_on_message = False
 
-        # For each data size, send a message and wait for a response
-        for key, value in test_data.items():
-            self.start_times[key] = time.perf_counter()
-            self.log.debug("Publishing test data...")
+        for i in range(NUM_TESTS):
 
-            self.waiting_on_message = True
-            self.publish("performance_test_topic", value)
+            # Print the current test without newline
+            print(f"\rRunning test {i + 1}/{NUM_TESTS}...", end="")
 
-            while self.waiting_on_message:
-                time.sleep(0.1)
+            # For each data size, send a message and wait for a response
+            for key, value in test_data.items():
+                self.start_times[key].append(time.perf_counter())
 
-        self.log.info("\n\n---\n\nDurations:")
+                self.waiting_on_message = True
+                self.publish("performance_test_topic", value)
+
+                while self.waiting_on_message:
+                    time.sleep(0.1)
+
+        self.log.info("\n\n---\n\n")
+        self.log.info("Test results (mean, median, std):")
         for key, value in self.durations.items():
-            self.log.info(f"{key}: {value:.5}ms")
+            mean = sum(value) / len(value)
+            median = sorted(value)[len(value) // 2]
+            std_dev = sum([(x - sum(value) / len(value)) ** 2 for x in value]) / len(
+                value
+            )
+
+            # Log the mean, median, and standard deviation
+            self.log.info(f"{key}: {mean:.5}ms, {median:.5}ms, {std_dev:.5}ms")
+
+        self.destroy_node()
 
     def subscriber_callback(self, msg):
         finish_time = time.perf_counter()
 
-        self.log.debug("Got message")
-
         # Get key of test data
         data_key = [key for key, value in test_data.items() if value == msg][0]
 
-        self.durations[data_key] = (finish_time - self.start_times[data_key]) * 1000
+        self.durations[data_key].append(
+            (finish_time - self.start_times[data_key][-1]) * 1000
+        )
 
         self.waiting_on_message = False
 

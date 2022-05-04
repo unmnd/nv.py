@@ -13,7 +13,6 @@ UNMND, Ltd. 2021
 All Rights Reserved
 """
 
-import json
 import os
 import pickle
 import re
@@ -25,6 +24,7 @@ import typing
 import uuid
 
 import numpy as np
+import orjson as json
 import quaternion  # This need to be imported to extend np
 import redis
 import yaml
@@ -375,10 +375,16 @@ class Node:
             The decoded message.
         """
 
-        # Try to decode the message as a string
+        # First try to decode the message into a string
         try:
-            return json.loads(message.decode("utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError):
+            message = message.decode("utf-8")
+        except UnicodeDecodeError:
+            return message
+
+        # Then see if we can load the string into a dict, list, float, int, etc.
+        try:
+            return json.loads(message)
+        except json.JSONDecodeError:
             return message
 
     def _encode_pubsub_message(self, message):
@@ -398,7 +404,7 @@ class Node:
 
         # Try to encode using json
         try:
-            return json.dumps(message)
+            return json.dumps(message, option=json.OPT_SERIALIZE_NUMPY)
         except TypeError:
             return message
 
