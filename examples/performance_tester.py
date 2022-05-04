@@ -1,7 +1,10 @@
 import os
 import random
 import time
+from pathlib import Path
+from threading import Event
 
+import numpy as np
 from nv.node import Node
 
 NUM_TESTS = 20
@@ -36,7 +39,7 @@ test_data = {
     "1D Floats Array": [random.random() for _ in range(64 * 64)],
     "1D Integers Array": [random.randint(-32768, 32767) for _ in range(64 * 64)],
     "2D Floats Array": [[random.random() for _ in range(64)] for _ in range(64)],
-    "Image Array": [[random.random() for _ in range(1024)] for _ in range(1024)],
+    "Image Array": np.load(Path(__file__).parent / "image_array.npy"),
 }
 
 
@@ -52,8 +55,9 @@ class PerformanceTester(Node):
 
         self.start_times = {key: [] for key in test_data.keys()}
         self.durations = {key: [] for key in test_data.keys()}
+        self.key = None
 
-        self.waiting_on_message = False
+        self.waiting_on_message = Event()
 
         for i in range(NUM_TESTS):
 
@@ -62,13 +66,14 @@ class PerformanceTester(Node):
 
             # For each data size, send a message and wait for a response
             for key, value in test_data.items():
+                self.key = key
+
                 self.start_times[key].append(time.perf_counter())
 
-                self.waiting_on_message = True
+                self.waiting_on_message.clear()
                 self.publish("performance_test_topic", value)
 
-                while self.waiting_on_message:
-                    time.sleep(0.1)
+                self.waiting_on_message.wait()
 
         self.log.info("\n\n---\n\n")
         self.log.info("Test results (mean, median, std):")
@@ -87,14 +92,11 @@ class PerformanceTester(Node):
     def subscriber_callback(self, msg):
         finish_time = time.perf_counter()
 
-        # Get key of test data
-        data_key = [key for key, value in test_data.items() if value == msg][0]
-
-        self.durations[data_key].append(
-            (finish_time - self.start_times[data_key][-1]) * 1000
+        self.durations[self.key].append(
+            (finish_time - self.start_times[self.key][-1]) * 1000
         )
 
-        self.waiting_on_message = False
+        self.waiting_on_message.set()
 
 
 def main():

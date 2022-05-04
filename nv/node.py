@@ -23,6 +23,7 @@ import time
 import typing
 import uuid
 
+import lz4framed
 import numpy as np
 import orjson as json
 import quaternion  # This need to be imported to extend np
@@ -374,17 +375,9 @@ class Node:
         ### Returns:
             The decoded message.
         """
-
-        # First try to decode the message into a string
         try:
-            message = message.decode("utf-8")
-        except UnicodeDecodeError:
-            return message
-
-        # Then see if we can load the string into a dict, list, float, int, etc.
-        try:
-            return json.loads(message)
-        except json.JSONDecodeError:
+            return json.loads(lz4framed.decompress(message))
+        except (json.JSONDecodeError, lz4framed.Lz4FramedError):
             return message
 
     def _encode_pubsub_message(self, message):
@@ -402,9 +395,10 @@ class Node:
             The encoded message.
         """
 
-        # Try to encode using json
         try:
-            return json.dumps(message, option=json.OPT_SERIALIZE_NUMPY)
+            return lz4framed.compress(
+                json.dumps(message, option=json.OPT_SERIALIZE_NUMPY)
+            )
         except TypeError:
             return message
 
