@@ -23,6 +23,7 @@ import time
 import typing
 import uuid
 
+import cysimdjson
 import lz4framed
 import numpy as np
 import orjson as json
@@ -32,6 +33,8 @@ import yaml
 
 from nv import exceptions, logger, utils, version
 
+lazy_parser = cysimdjson.JSONParser()
+
 
 class Node:
     def __init__(
@@ -40,6 +43,7 @@ class Node:
         skip_registration: bool = False,
         log_level: int = None,
         keep_old_parameters: bool = False,
+        use_lazy_parser: bool = False,
         redis_host: str = None,
         redis_port: int = None,
     ):
@@ -66,6 +70,9 @@ class Node:
                 default is used.
             - `keep_old_parameters` (bool): Whether to keep old parameters from
                 previous instances of this node.
+            - `use_lazy_parser` (bool): Whether to use the lazy parser
+              (cysimdjson) when decoding messages for improved performance on
+              large data.
         """
 
         # Bind callbacks to gracefully exit the node on signal
@@ -94,6 +101,7 @@ class Node:
         self.name = name
         self.node_registered = False
         self.skip_registration = skip_registration
+        self.use_lazy_parser = use_lazy_parser
         self.stopped = threading.Event()
         self._start_time = time.time()
 
@@ -375,9 +383,14 @@ class Node:
         ### Returns:
             The decoded message.
         """
+
         try:
-            return json.loads(lz4framed.decompress(message))
-        except (json.JSONDecodeError, lz4framed.Lz4FramedError):
+            # Select the parser to use
+            if self.use_lazy_parser:
+                return lazy_parser.loads(str(lz4framed.decompress(message)))
+            else:
+                return json.loads(lz4framed.decompress(message))
+        except (json.JSONDecodeError, ValueError, lz4framed.Lz4FramedError):
             return message
 
     def _encode_pubsub_message(self, message):

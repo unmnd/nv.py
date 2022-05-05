@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from threading import Event
 
+# import cv2
 import numpy as np
 from nv.node import Node
 
@@ -42,10 +43,18 @@ test_data = {
     "Image Array": np.load(Path(__file__).parent / "image_array.npy"),
 }
 
+# _, jpg = cv2.imencode(".jpg", test_data["Image Array"])
+# test_data["Image JPG"] = jpg.tobytes()
+
+# _, png = cv2.imencode(".png", test_data["Image Array"])
+# test_data["Image PNG"] = png.tobytes()
+
 
 class PerformanceTester(Node):
     def __init__(self):
-        super().__init__("performance_tester_node", skip_registration=True)
+        super().__init__(
+            "performance_tester_node", skip_registration=True, use_lazy_parser=False
+        )
 
         # Set up the subscriber
         self.subscriber = self.create_subscription(
