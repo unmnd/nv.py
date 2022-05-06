@@ -28,7 +28,7 @@ ARG PYTHON_VERSION="3.8"
 RUN apt-get update && \
     apt-get install -y --no-install-recommends software-properties-common && \
     add-apt-repository -y ppa:deadsnakes && \
-    apt-get install -y --no-install-recommends python${PYTHON_VERSION} python${PYTHON_VERSION}-dev python${PYTHON_VERSION}-venv && \
+    apt-get install -y --no-install-recommends python${PYTHON_VERSION} python${PYTHON_VERSION}-dev python${PYTHON_VERSION}-venv gcc g++ && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

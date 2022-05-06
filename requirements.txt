@@ -8,3 +8,4 @@ numpy-quaternion==2021.11.4.15.26.3
 requests==2.26.0
 orjson==3.6.8
 cysimdjson==21.11
+py-lz4framed==0.14.0
