@@ -1,18 +1,8 @@
-#
-# ------------------------------------------------------------------------------
-#                                NV DOCKERFILE
-#                                 L4T EDITION
-# ------------------------------------------------------------------------------
-#
-# This Dockerfile adapts the standard nv dockerfile to include the L4T base
-# image, meaning the Nvidia Container Runtime on Jetson is available.
-#
-# The nv framework is used as an alternative for ROS2, as a robotics framework
-# which facilitates communication and interaction between different 'nodes'. It
-# has been designed primarily for the Navvy robot.
+# This Dockerfile is used as a base image for the Python version of the nv
+# framework, running on an NVIDIA Jetson device.
 #
 # Callum Morrison, 2021
-# UNMND, Ltd. 2021
+# UNMND, Ltd.
 # <callum@unmnd.com>
 #
 # All Rights Reserved
