@@ -16,6 +16,7 @@ import os
 import pathlib
 import time
 
+from nv import utils
 from nv.node import Node
 
 
@@ -24,7 +25,7 @@ class Subscriber(Node):
         super().__init__("subscriber_node", skip_registration=True)
 
         self.message = None
-        self.create_subscription("hello_world", self.subscriber_callback)
+        self.create_subscription("pytest_test_topic", self.subscriber_callback)
 
     def subscriber_callback(self, msg):
         self.message = msg
@@ -60,34 +61,45 @@ def test_messaging():
     subscriber_node = Subscriber()
     publisher_node = Node(skip_registration=True)
 
-    msg = "Hello World"
+    test_data = {
+        "string": "Hello World",
+        "int": 123,
+        "float": 123.456,
+        "list": [1, 2, 3],
+        "dict": {"key": "value"},
+        "binary": b"Hello World",
+        "large_data": ["Hello World" for _ in range(100000)],
+    }
 
-    publisher_node.publish("hello_world", msg)
+    for key, value in test_data.items():
+        publisher_node.publish("pytest_test_topic", value)
 
-    while subscriber_node.message is None:
-        time.sleep(0.001)
+        while subscriber_node.message is None:
+            time.sleep(0.001)
 
-    assert subscriber_node.message == msg
-
-    subscriber_node.destroy_node()
-    publisher_node.destroy_node()
-
-
-def test_large_data_messaging():
-    subscriber_node = Subscriber()
-    publisher_node = Node(skip_registration=True)
-
-    msg = ["Hello World" for _ in range(100000)]
-
-    publisher_node.publish("hello_world", msg)
-
-    while subscriber_node.message is None:
-        time.sleep(0.001)
-
-    assert subscriber_node.message == msg
+        assert subscriber_node.message == value
+        subscriber_node.message = None
 
     subscriber_node.destroy_node()
     publisher_node.destroy_node()
+
+
+def test_compression():
+    data = {
+        "string": "Hello World",
+        "int": 123,
+        "object": {"key": "value"},
+        "binary": b"Hello World",
+        "large_data": ["Hello World" for _ in range(100000)],
+        "array": [1 if i % 2 == 0 else i for i in range(10000)],
+    }
+
+    for key, value in data.items():
+        compressed_data, compression_ratio = utils.compress_message(
+            value, size_comparison=True
+        )
+
+        assert utils.decompress_message(compressed_data) == value
 
 
 def test_parameters():

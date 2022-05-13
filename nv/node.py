@@ -23,17 +23,22 @@ import time
 import typing
 import uuid
 
-import cysimdjson
-import lz4framed
 import numpy as np
 import orjson as json
 import quaternion  # This need to be imported to extend np
 import redis
 import yaml
 
-from nv import exceptions, logger, utils, version
+# Optional imports
+try:
+    import cysimdjson
 
-lazy_parser = cysimdjson.JSONParser()
+    lazy_parser = cysimdjson.JSONParser()
+except ImportError:
+    lazy_parser = None
+
+
+from nv import exceptions, logger, utils, version
 
 
 class Node:
@@ -101,9 +106,20 @@ class Node:
         self.name = name
         self.node_registered = False
         self.skip_registration = skip_registration
-        self.use_lazy_parser = use_lazy_parser
         self.stopped = threading.Event()
         self._start_time = time.time()
+
+        # Only allow lazy parsing if the module is available
+        if use_lazy_parser and lazy_parser is not None:
+            self.log.debug("Using lazy parser")
+            self.use_lazy_parser = True
+        else:
+            if use_lazy_parser and lazy_parser is None:
+                self.log.warning("Lazy parser not available, using standard parser")
+            else:
+                self.log.debug("Using standard parser")
+
+            self.use_lazy_parser = False
 
         # The subscriptions dictionary is in the form of:
         # {
@@ -387,10 +403,10 @@ class Node:
         try:
             # Select the parser to use
             if self.use_lazy_parser:
-                return lazy_parser.loads(str(lz4framed.decompress(message)))
+                return lazy_parser.loads(str(message))
             else:
-                return json.loads(lz4framed.decompress(message))
-        except (json.JSONDecodeError, ValueError, lz4framed.Lz4FramedError):
+                return json.loads(message)
+        except (json.JSONDecodeError, ValueError):
             return message
 
     def _encode_pubsub_message(self, message):
@@ -409,9 +425,7 @@ class Node:
         """
 
         try:
-            return lz4framed.compress(
-                json.dumps(message, option=json.OPT_SERIALIZE_NUMPY)
-            )
+            return json.dumps(message, option=json.OPT_SERIALIZE_NUMPY)
         except TypeError:
             return message
 
@@ -939,7 +953,7 @@ class Node:
             create_service("test", callback_function)
         """
 
-        def handle_service_callback(message):
+        def handle_service_call(message):
             """
             Used to handle requests to call a service, and respond by publishing
             any data on the requested topic.
@@ -983,7 +997,7 @@ class Node:
         service_id = "srv://" + str(uuid.uuid4())
 
         # Register a message handler for the service
-        self.create_subscription(service_id, handle_service_callback)
+        self.create_subscription(service_id, handle_service_call)
 
         # Save the service name and ID
         self._services[service_name] = service_id

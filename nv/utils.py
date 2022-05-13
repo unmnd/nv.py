@@ -14,16 +14,17 @@ All Rights Reserved
 import cProfile
 import pstats
 import random
+import sys
 import time
 import typing
 from threading import Event, Thread
 
-# MAGIC = "n4vvy"
-# CONFIG_PATH = os.path.join(os.path.expanduser("~"), ".nv")
+import orjson as json
 
-# # Generate the config path if it doesn't exist
-# if not os.path.exists(CONFIG_PATH):
-#     os.makedirs(CONFIG_PATH)
+try:
+    import lz4framed
+except ImportError:
+    lz4framed = None
 
 
 class LoopTimer:
@@ -230,6 +231,67 @@ def generate_name() -> str:
     # fmt: on
 
     return random.choice(adjectives) + "_" + random.choice(nouns)
+
+
+def compress_message(message: typing.Any, size_comparison=False) -> bytes:
+    """
+    ### Compress a message before sending it over the network.
+
+    Uses lz4 frames for maximum performance. It works best using large data with
+    lots of repeating values, such as arrays where a lot of values are '0' or
+    'NaN'.
+
+    If size_comparison is True, it will check if the compressed message is
+    actually smaller than the original, and will return whichever is smaller, as
+    well as the compression ratio.
+    """
+
+    if lz4framed is None:
+        raise ImportError(
+            "lz4framed is not installed. Please install `py-lz4framed` with pip."
+        )
+
+    # Try to serialise the message as JSON.
+    try:
+        message = json.dumps(message, option=json.OPT_SERIALIZE_NUMPY)
+    except TypeError:
+        pass
+
+    compressed = lz4framed.compress(message)
+
+    if size_comparison:
+        original_size = sys.getsizeof(message)
+        compressed_size = sys.getsizeof(compressed)
+        ratio = original_size / compressed_size
+
+        print(f"Original size: {original_size}")
+        print(f"Compressed size: {compressed_size}")
+        print(f"Compression ratio: {ratio}")
+
+        return compressed if compressed_size < original_size else message, ratio
+
+    else:
+        return compressed
+
+
+def decompress_message(message: bytes) -> typing.Union[str, bytes]:
+    """
+    ### Decompress a message after receiving it over the network.
+    """
+
+    # First try to decompress the message
+    try:
+        message = lz4framed.decompress(message)
+    except lz4framed.Lz4FramedError:
+        pass
+
+    # Then try to deserialise the message as JSON
+    try:
+        message = json.loads(message)
+    except json.JSONDecodeError:
+        pass
+
+    return message
 
 
 # def ratelimit(limit: int, every: float = 1.0, droppy: bool = False):
