@@ -35,8 +35,8 @@ class ServiceServer(Node):
     def __init__(self):
         # You can't skip registration on service servers
         super().__init__()
-        self.srv = self.create_service("example_service", self.example_service)
-        self.list_srv = self.create_service("list_service", self.list_service)
+        self.create_service("example_service", self.example_service)
+        self.create_service("list_service", self.list_service)
 
     def example_service(self, arg: str, kwarg: str = None):
         return arg + kwarg

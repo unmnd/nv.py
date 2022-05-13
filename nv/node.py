@@ -51,6 +51,7 @@ class Node:
         use_lazy_parser: bool = False,
         redis_host: str = None,
         redis_port: int = None,
+        redis_unix_socket: str = None,
     ):
         """
         The Node class is the main class of the nv framework. It is used to
@@ -78,6 +79,10 @@ class Node:
             - `use_lazy_parser` (bool): Whether to use the lazy parser
               (cysimdjson) when decoding messages for improved performance on
               large data.
+            - `redis_host` (str): Force the Redis host to use.
+            - `redis_port` (int): Force the Redis port to use.
+            - `redis_unix_socket` (str): Force the Redis unix socket to use.
+
         """
 
         # Bind callbacks to gracefully exit the node on signal
@@ -140,39 +145,45 @@ class Node:
         # Connect redis clients
         # The topics database stores messages for communication between nodes.
         # The key is always the topic.
+        redis_unix_socket = redis_unix_socket or os.environ.get("NV_REDIS_UNIX_SOCKET")
         redis_host = redis_host or os.environ.get("NV_REDIS_HOST")
         redis_port = redis_port or os.environ.get("NV_REDIS_PORT") or 6379
 
         self._redis_topics = self._connect_redis(
+            sock_path=redis_unix_socket,
             redis_host=redis_host,
             port=redis_port,
             db=0,
         )
 
+        # If the first database connected successfully, we can extract
+        # connection information from it for the other databases.
+        redis_connection_info = self._redis_topics.connection_pool.connection_kwargs
+
+        # If 'path' is set, we are using a Unix socket, otherwise we are using
+        # a TCP connection.
+        if redis_connection_info.get("path"):
+            redis_connection_params = {
+                "unix_socket_path": redis_connection_info["path"]
+            }
+        else:
+            redis_connection_params = {
+                "host": redis_connection_info["host"],
+                "port": redis_connection_info["port"],
+            }
+
         # The parameters database stores key-value parameters to be used for
         # each node. The key is the node_name.parameter_name.
-        self._redis_parameters = self._connect_redis(
-            redis_host=redis_host,
-            port=redis_port,
-            db=1,
-        )
+        self._redis_parameters = redis.Redis(**redis_connection_params, db=1)
 
         # The transforms database stores transformations between frames. The key
         # is in the form <source_frame>:<target_frame>.
-        self._redis_transforms = self._connect_redis(
-            redis_host=redis_host,
-            port=redis_port,
-            db=2,
-        )
+        self._redis_transforms = redis.Redis(**redis_connection_params, db=2)
 
         # The nodes database stores up-to-date information about which nodes are
         # active on the network. Each node is responsible for storing and
         # keeping it's own information active.
-        self._redis_nodes = self._connect_redis(
-            redis_host=redis_host,
-            port=redis_port,
-            db=3,
-        )
+        self._redis_nodes = redis.Redis(**redis_connection_params, db=3)
 
         if self.skip_registration:
             self.log.warning("Skipping node registration...")
@@ -246,23 +257,10 @@ class Node:
         Register the node with the server.
         """
 
-        def _renew_node_information():
-            """
-            Renew the node information, by overwriting the node information and
-            resetting a 10 second expiry timer.
-            """
-
-            # Update the node information
-            self._redis_nodes.set(
-                self.name,
-                json.dumps(self.get_node_information()),
-                ex=10,
-            )
-
         # Create a timer which renews the node information every 5 seconds
         self._renew_node_information_timer = self.create_loop_timer(
             interval=5,
-            function=_renew_node_information,
+            function=self._renew_node_information,
             immediate=True,
         )
 
@@ -270,6 +268,19 @@ class Node:
         self.node_registered = True
 
         self.log.info(f"Node successfully registered!")
+
+    def _renew_node_information(self):
+        """
+        Renew the node information, by overwriting the node information and
+        resetting a 10 second expiry timer.
+        """
+
+        # Update the node information
+        self._redis_nodes.set(
+            self.name,
+            json.dumps(self.get_node_information()),
+            ex=10,
+        )
 
     def _deregister_node(self):
         """
@@ -361,6 +372,9 @@ class Node:
                 r = redis.Redis(host=host, port=port, db=db)
 
                 if _test_connection(r):
+
+                    self.log.info(f"Connected to Redis servier at {host}:{port}")
+
                     return r
 
         raise ConnectionError(
@@ -533,7 +547,7 @@ class Node:
         """
         self.stopped.wait()
 
-    def get_logger(self, name=None, log_level=logger.INFO):
+    def get_logger(self, name=None):
         """
         ### Get a logger for the nv framework.
         Note, the logger for the current node is always available as `self.log`.
@@ -543,8 +557,6 @@ class Node:
         ### Parameters:
             - `name` (str): The name of the logger.
                 [Default: <node name>]
-            - `log_level` (int): The log level.
-                [Default: `logger.INFO`]
 
         ---
 
@@ -1001,6 +1013,9 @@ class Node:
 
         # Save the service name and ID
         self._services[service_name] = service_id
+
+        # Renew node info immediately
+        self._renew_node_information()
 
     def call_service(self, service_name: str, *args, **kwargs):
         """
