@@ -15,11 +15,9 @@ setup(
         "click==8.0.3",
         "redis==3.5.3",
         "numpy==1.20.3",
-        # "numba==0.54.1",
-        # "scipy==1.7.2",
         "numpy-quaternion==2021.11.4.15.26.3",
         "requests==2.26.0",
-        "pyro4==4.81"
+        "orjson==3.6.8",
     ],
     python_requires=">=3.8",
     entry_points={"console_scripts": ["nv=nv.__main__:main"]},

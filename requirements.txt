@@ -1,11 +1,1 @@
-pyyaml==6.0
-click==8.0.3
-redis==3.5.3
-numpy==1.20.3
-# numba==0.54.1
-# scipy==1.7.2
-numpy-quaternion==2021.11.4.15.26.3
-requests==2.26.0
-orjson==3.6.8
-cysimdjson==21.11
-py-lz4framed==0.14.0
+.
