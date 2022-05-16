@@ -50,7 +50,7 @@ class Node:
         keep_old_parameters: bool = False,
         use_lazy_parser: bool = False,
         redis_host: str = None,
-        redis_port: int = None,
+        redis_port: int = 6379,
         redis_unix_socket: str = None,
     ):
         """
@@ -143,47 +143,28 @@ class Node:
         self._services = {}
 
         # Connect redis clients
-        # The topics database stores messages for communication between nodes.
-        # The key is always the topic.
-        redis_unix_socket = redis_unix_socket or os.environ.get("NV_REDIS_UNIX_SOCKET")
-        redis_host = redis_host or os.environ.get("NV_REDIS_HOST")
-        redis_port = redis_port or os.environ.get("NV_REDIS_PORT") or 6379
-
-        self._redis_topics = self._connect_redis(
-            sock_path=redis_unix_socket,
-            redis_host=redis_host,
-            port=redis_port,
-            db=0,
+        self.redis_host = redis_host or os.environ.get("NV_REDIS_HOST")
+        self.redis_port = redis_port or os.environ.get("NV_REDIS_PORT")
+        self.redis_unix_socket = redis_unix_socket or os.environ.get(
+            "NV_REDIS_UNIX_SOCKET"
         )
 
-        # If the first database connected successfully, we can extract
-        # connection information from it for the other databases.
-        redis_connection_info = self._redis_topics.connection_pool.connection_kwargs
-
-        # If 'path' is set, we are using a Unix socket, otherwise we are using
-        # a TCP connection.
-        if redis_connection_info.get("path"):
-            redis_connection_params = {
-                "unix_socket_path": redis_connection_info["path"]
-            }
-        else:
-            redis_connection_params = {
-                "host": redis_connection_info["host"],
-                "port": redis_connection_info["port"],
-            }
+        # The topics database stores messages for communication between nodes.
+        # The key is always the topic.
+        self._redis_topics = self._connect_redis(db=0)
 
         # The parameters database stores key-value parameters to be used for
         # each node. The key is the node_name.parameter_name.
-        self._redis_parameters = redis.Redis(**redis_connection_params, db=1)
+        self._redis_parameters = redis.Redis(db=1)
 
         # The transforms database stores transformations between frames. The key
         # is in the form <source_frame>:<target_frame>.
-        self._redis_transforms = redis.Redis(**redis_connection_params, db=2)
+        self._redis_transforms = redis.Redis(db=2)
 
         # The nodes database stores up-to-date information about which nodes are
         # active on the network. Each node is responsible for storing and
         # keeping it's own information active.
-        self._redis_nodes = redis.Redis(**redis_connection_params, db=3)
+        self._redis_nodes = redis.Redis(db=3)
 
         if self.skip_registration:
             self.log.warning("Skipping node registration...")
@@ -306,9 +287,6 @@ class Node:
 
     def _connect_redis(
         self,
-        sock_path: str = "/tmp/docker/redis.sock",
-        redis_host: str = None,
-        port: int = 6379,
         db: int = 0,
     ):
         """
@@ -323,9 +301,9 @@ class Node:
         ---
 
         ### Parameters:
-            - `sock_path` (str): The path to the unix socket.
+            - `redis_unix_socket` (str): The path to the unix socket.
             - `redis_host` (str): The host of the redis database.
-            - `port` (int): The port of the redis database.
+            - `redis_port` (int): The port of the redis database.
             - `db` (int): The database hosting messaging data.
 
         ---
@@ -334,52 +312,64 @@ class Node:
             The redis client.
         """
 
-        def _test_connection(r: redis.Redis):
-            """
-            ### Check if the redis client is connected.
+        def _create_redis(connection_params: dict):
+            self.log.debug(f"Connecting to Redis using parameters: {connection_params}")
 
-            ---
-
-            ### Parameters:
-                - `r` (redis.Redis): The redis client.
-
-            ---
-
-            ### Returns:
-                `True` if the client is connected, `False` otherwise.
-            """
-            try:
-                r.ping()
-                return True
-            except redis.exceptions.ConnectionError:
-                return False
-
-        # First try to connect with a unix socket
-        r = redis.Redis(unix_socket_path=sock_path, db=db)
-        if _test_connection(r):
-            self.log.debug(f"Connecting to redis using unix sockets at: {sock_path}")
-            return r
-
-        if redis_host:
-            r = redis.Redis(host=redis_host, port=port, db=db)
-
-            # Don't catch for errors; if a host is supplied it should override
-            # any other auto-detection.
+            r = redis.Redis(**connection_params)
             r.ping()
+
             return r
+
+        # If a unix socket is specified, use it
+        if self.redis_unix_socket:
+            self.log.info(
+                f"Connecting to Redis using unix socket: {self.redis_unix_socket}"
+            )
+
+            redis_connection_params = {
+                "unix_socket_path": self.redis_unix_socket,
+                "db": db,
+            }
+
+            return _create_redis(redis_connection_params)
+
+        # If a host is specified, use it
+        elif self.redis_host:
+
+            self.log.info(
+                f"Connecting to Redis using host/port: {self.redis_host}:{self.redis_port}"
+            )
+
+            redis_connection_params = {
+                "host": self.redis_host,
+                "port": self.redis_port,
+                "db": db,
+            }
+
+            return _create_redis(redis_connection_params)
+
+        # Otherwise, try to find a redis host automatically
         else:
-            for host in ["redis", "localhost"]:
-                r = redis.Redis(host=host, port=port, db=db)
+            self.log.info("Attempting to autodetect Redis host...")
 
-                if _test_connection(r):
+            hosts = ["localhost", "redis", "127.0.0.1"]
 
-                    self.log.info(f"Connected to Redis servier at {host}:{port}")
+            for host in hosts:
+                redis_connection_params = {
+                    "host": host,
+                    "port": self.redis_port,
+                    "db": db,
+                }
 
+                try:
+                    r = _create_redis(redis_connection_params)
+                    self.redis_host = host
                     return r
 
-        raise ConnectionError(
-            "Could not connect to Redis. Check it's running and accessible!"
-        )
+                except redis.exceptions.ConnectionError:
+                    pass
+
+            raise exceptions.RedisConnectionException("Could not connect to Redis!")
 
     def _pubsub_loop(self):
         """

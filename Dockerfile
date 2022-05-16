@@ -30,14 +30,10 @@ WORKDIR /opt/nv
 # Copy examples
 COPY examples examples
 
-# Copy files needed to install requirements only
-COPY requirements.txt requirements.txt
+# Update pip to latest
+RUN python3 -m pip install --upgrade pip
 
-# Install requirements for the nv framework first
-RUN python3 -m pip install --upgrade pip && \
-    pip3 install -r requirements.txt
-
-# Then copy the rest of the nv framework and install
+# Copy the nv framework and install
 COPY setup.py setup.py
 COPY nv nv
-RUN pip3 install . && rm -rf nv setup.py
+RUN pip3 install . && rm -rf nv setup.py && rm -rf nv/__pycache__

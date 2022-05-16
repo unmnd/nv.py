@@ -12,6 +12,10 @@ All Rights Reserved
 """
 
 
+class RedisConnectionException(Exception):
+    ...
+
+
 class HostNotFoundException(Exception):
     ...
 
