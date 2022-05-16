@@ -155,16 +155,16 @@ class Node:
 
         # The parameters database stores key-value parameters to be used for
         # each node. The key is the node_name.parameter_name.
-        self._redis_parameters = redis.Redis(db=1)
+        self._redis_parameters = self._connect_redis(db=1)
 
         # The transforms database stores transformations between frames. The key
         # is in the form <source_frame>:<target_frame>.
-        self._redis_transforms = redis.Redis(db=2)
+        self._redis_transforms = self._connect_redis(db=2)
 
         # The nodes database stores up-to-date information about which nodes are
         # active on the network. Each node is responsible for storing and
         # keeping it's own information active.
-        self._redis_nodes = redis.Redis(db=3)
+        self._redis_nodes = self._connect_redis(db=3)
 
         if self.skip_registration:
             self.log.warning("Skipping node registration...")
