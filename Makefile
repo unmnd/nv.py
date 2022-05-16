@@ -31,7 +31,7 @@ APP_NAME = "nv"
 REMOTE_REGISTRY = "cr.xdgfx.com"
 VERSION = $(shell cd nv && python3 -c "import version; print(version.__version__)")
 
-.PHONY: help
+.PHONY: help build all tag push version
 
 help:
 	@awk '/^#/ {print $0}' $(MAKEFILE_LIST)
