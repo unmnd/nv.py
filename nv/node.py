@@ -970,7 +970,12 @@ class Node:
 
             # Call the service
             try:
+                start_time = time.time()
                 result = callback_function(*args, **kwargs)
+                if duration := ((time.time() - start_time) * 1000) > 10:
+                    self.logger.debug(
+                        f"Service '{service_name}' took {duration}ms to complete"
+                    )
             except Exception as e:
                 self.log.error(
                     f"Error handling service call: '{service_name}'", exc_info=e
