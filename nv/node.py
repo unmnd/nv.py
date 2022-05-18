@@ -1027,6 +1027,7 @@ class Node:
 
         ### Returns:
             The result of the service.
+
         ---
 
         ### Raises:

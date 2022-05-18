@@ -420,13 +420,7 @@ def service_call(service_name, arg, kwarg):
             args.append(a)
 
     click.echo(f"Calling service {service_name} with args: {args} and kwargs: {kwargs}")
-    service_result = node.call_service(service_name, *args, **kwargs)
-
-    click.echo("Waiting for response...")
-
-    service_result.wait()
-
-    click.echo(f"Service result: {service_result.get_response()}")
+    click.echo(f"Service result: {node.call_service(service_name, *args, **kwargs)}")
 
 
 @main.group("tree")
