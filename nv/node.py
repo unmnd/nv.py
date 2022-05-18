@@ -498,6 +498,7 @@ class Node:
         # Save the result
         self._service_requests[message["request_id"]]["result"] = message["result"]
         self._service_requests[message["request_id"]]["data"] = message["data"]
+        self._service_requests[message["request_id"]]["timings"] = message["timings"]
 
         # Set the event to indicate the response has been received
         self._service_requests[message["request_id"]]["event"].set()
@@ -962,7 +963,11 @@ class Node:
             """
 
             # Get the response topic from the message
-            response_topic = message.get("response_topic")
+            response_topic = message["response_topic"]
+
+            # Extract and update timings dict
+            timings = message["timings"]
+            timings["request_received"] = time.time()
 
             # Get args and kwargs from the message
             args = message.get("args", [])
@@ -970,12 +975,8 @@ class Node:
 
             # Call the service
             try:
-                start_time = time.time()
                 result = callback_function(*args, **kwargs)
-                if duration := ((time.time() - start_time) * 1000) > 10:
-                    self.log.debug(
-                        f"Service '{service_name}' took {duration}ms to complete"
-                    )
+                timings["request_completed"] = time.time()
             except Exception as e:
                 self.log.error(
                     f"Error handling service call: '{service_name}'", exc_info=e
@@ -985,7 +986,8 @@ class Node:
                     {
                         "result": "error",
                         "data": str(e),
-                        "request_id": message.get("request_id"),
+                        "request_id": message["request_id"],
+                        "timings": timings,
                     },
                 )
                 return
@@ -996,7 +998,8 @@ class Node:
                 {
                     "result": "success",
                     "data": result,
-                    "request_id": message.get("request_id"),
+                    "request_id": message["request_id"],
+                    "timings": timings,
                 },
             )
 
@@ -1058,12 +1061,14 @@ class Node:
 
         # Create the entry in the service requests dict
         self._service_requests[request_id] = {
-            "data": None,
             "event": threading.Event(),
         }
 
         # Create a message to send to the service
         message = {
+            "timings": {
+                "start": time.time(),
+            },
             "response_topic": self.service_response_channel,
             "request_id": request_id,
             "args": args,
@@ -1090,6 +1095,20 @@ class Node:
 
         # Extract the data
         data = self._service_requests[request_id]["data"]
+        timings = self._service_requests[request_id]["timings"]
+
+        # Complete timings
+        timings["end"] = time.time()
+
+        # Normalise timings to the time the request was sent
+        timings = {
+            key: (value - timings["start"]) * 1000 for key, value in timings.items()
+        }
+
+        # Print and format the cumulative timings
+        self.log.debug(
+            f"Service ({service_name}) timings: {' -> '.join([f'{value:.0f}ms ({key})' for key, value in timings.items()])}"
+        )
 
         # Delete the request
         del self._service_requests[request_id]
