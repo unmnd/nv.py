@@ -102,9 +102,9 @@ def time_func(
         - `kwargs`: The keyword arguments to pass to the function.
     """
 
-    start = time.time()
+    start = time.perf_counter()
     result = func(*args, **kwargs)
-    end = time.time()
+    end = time.perf_counter()
 
     # Convert duration to human readable
     duration, prefix, suffix = format_duration(start, end)
@@ -233,7 +233,9 @@ def generate_name() -> str:
     return random.choice(adjectives) + "_" + random.choice(nouns)
 
 
-def compress_message(message: typing.Any, size_comparison=False) -> bytes:
+def compress_message(
+    message: typing.Any, size_comparison=False, stringify=True
+) -> bytes:
     """
     ### Compress a message before sending it over the network.
 
@@ -258,6 +260,9 @@ def compress_message(message: typing.Any, size_comparison=False) -> bytes:
         pass
 
     compressed = lz4framed.compress(message)
+
+    if stringify:
+        compressed = str(compressed)
 
     if size_comparison:
         original_size = sys.getsizeof(message)

@@ -237,7 +237,7 @@ def topic_subs(topic):
     """
     click.echo(f"Subscribers to topic: {topic}")
 
-    subscribers = node.get_topic_subscriptions(topic)
+    subscribers = node.get_topic_subscribers(topic)
     click.echo(json.dumps(subscribers, indent=4))
 
 

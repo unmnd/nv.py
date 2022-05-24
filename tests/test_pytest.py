@@ -96,7 +96,7 @@ def test_compression():
 
     for key, value in data.items():
         compressed_data, compression_ratio = utils.compress_message(
-            value, size_comparison=True
+            value, size_comparison=True, stringify=False
         )
 
         assert utils.decompress_message(compressed_data) == value
