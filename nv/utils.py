@@ -235,7 +235,10 @@ def generate_name() -> str:
 
 
 def compress_message(
-    message: typing.Any, serializer: str = "json", size_comparison=False, stringify=True
+    message: typing.Any,
+    serializer: str = "json",
+    size_comparison=False,
+    stringify=False,
 ) -> bytes:
     """
     ### Compress a message before sending it over the network.
