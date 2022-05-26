@@ -12,6 +12,7 @@ All Rights Reserved
 """
 
 import cProfile
+import pickle
 import pstats
 import random
 import sys
@@ -88,7 +89,7 @@ class LoopTimer:
 
 
 def time_func(
-    func: typing.Callable, print_function: typing.Callable = print, *args, **kwargs
+    func: typing.Callable, *args, print_function: typing.Callable = print, **kwargs
 ):
     """
     ### Time execution time of a function.
@@ -234,7 +235,7 @@ def generate_name() -> str:
 
 
 def compress_message(
-    message: typing.Any, size_comparison=False, stringify=True
+    message: typing.Any, serializer: str = "json", size_comparison=False, stringify=True
 ) -> bytes:
     """
     ### Compress a message before sending it over the network.
@@ -246,6 +247,17 @@ def compress_message(
     If size_comparison is True, it will check if the compressed message is
     actually smaller than the original, and will return whichever is smaller, as
     well as the compression ratio.
+
+    ---
+
+    ### Parameters:
+    - `message`: The message to compress.
+    - `serializer`: The serialisation method to use. Can be 'json', 'pickle', or
+        "" (blank string) for none.
+    - `size_comparison`: Whether to check if the compressed message is actually
+        smaller than the original.
+    - `stringify`: Whether to return a string rather than bytes.
+
     """
 
     if lz4framed is None:
@@ -253,9 +265,13 @@ def compress_message(
             "lz4framed is not installed. Please install `py-lz4framed` with pip."
         )
 
-    # Try to serialise the message as JSON.
+    # Serialise the message.
     try:
-        message = json.dumps(message, option=json.OPT_SERIALIZE_NUMPY)
+        if serializer == "json":
+            message = json.dumps(message, option=json.OPT_SERIALIZE_NUMPY)
+        elif serializer == "pickle":
+            message = pickle.dumps(message)
+
     except TypeError:
         pass
 
