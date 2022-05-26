@@ -309,11 +309,14 @@ def decompress_message(message: bytes) -> typing.Union[str, bytes]:
     except lz4framed.Lz4FramedError:
         pass
 
-    # Then try to deserialise the message as JSON
+    # Then try to deserialise the message as JSON or pickle
     try:
         message = json.loads(message)
     except json.JSONDecodeError:
-        pass
+        try:
+            message = pickle.loads(message)
+        except pickle.UnpicklingError:
+            pass
 
     return message
 
