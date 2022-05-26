@@ -500,9 +500,9 @@ class Node:
         # If the data starts with "NV_BYTES:" we need to fetch the binary data
         # directly from redis
         if isinstance(message["data"], str) and message["data"].startswith("NV_BYTES:"):
-            self._service_requests[message["request_id"]]["data"] = self._redis_topics.get(
-                message["data"]
-            )
+            self._service_requests[message["request_id"]][
+                "data"
+            ] = self._redis_topics.get(message["data"])
         else:
             self._service_requests[message["request_id"]]["data"] = message["data"]
 
