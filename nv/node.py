@@ -495,9 +495,17 @@ class Node:
             `None`
         """
 
-        # Save the result
         self._service_requests[message["request_id"]]["result"] = message["result"]
-        self._service_requests[message["request_id"]]["data"] = message["data"]
+
+        # If the data starts with "NV_BYTES:" we need to fetch the binary data
+        # directly from redis
+        if isinstance(message["data"], str) and message["data"].startswith("NV_BYTES:"):
+            self._service_requests[message["request_id"]]["data"] = self._redis_topics.get(
+                message["data"]
+            )
+        else:
+            self._service_requests[message["request_id"]]["data"] = message["data"]
+
         self._service_requests[message["request_id"]]["timings"] = message["timings"]
 
         # Set the event to indicate the response has been received
@@ -991,7 +999,7 @@ class Node:
 
             # Call the service
             try:
-                result = callback_function(*args, **kwargs)
+                data = callback_function(*args, **kwargs)
                 timings["request_completed"] = time.time()
             except Exception as e:
                 self.log.error(
@@ -1008,12 +1016,19 @@ class Node:
                 )
                 return
 
+            # If the data is bytes, we can't JSON serialise it. Instead, we push
+            # it straight to Redis, and send the key in the service response.
+            if isinstance(data, bytes):
+                key = "NV_BYTES:" + uuid.uuid4().hex
+                self._redis_topics.set(key, data, ex=60)
+                data = key
+
             # Publish the result on the response topic
             self.publish(
                 response_topic,
                 {
                     "result": "success",
-                    "data": result,
+                    "data": data,
                     "request_id": message["request_id"],
                     "timings": timings,
                 },
