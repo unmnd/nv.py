@@ -14,6 +14,7 @@ All Rights Reserved
 
 import os
 import pathlib
+import random
 import time
 
 from nv import utils
@@ -37,12 +38,21 @@ class ServiceServer(Node):
         super().__init__()
         self.create_service("example_service", self.example_service)
         self.create_service("list_service", self.list_service)
+        self.create_service(
+            "nonconcurrent_service",
+            self.nonconcurrent_service,
+            allow_parallel_calls=False,
+        )
 
     def example_service(self, arg: str, kwarg: str = None):
         return arg + kwarg
 
     def list_service(self):
         return [1, 2, 3]
+
+    def nonconcurrent_service(self, call_number: int):
+        time.sleep(random.random())
+        return call_number
 
 
 class ConditionalNode(Node):
@@ -167,6 +177,7 @@ def test_services():
     # Wait for the services to be active
     assert service_client.wait_for_service_ready("example_service")
     assert service_client.wait_for_service_ready("list_service")
+    assert service_client.wait_for_service_ready("nonconcurrent_service")
 
     # Calling a service
     assert (
@@ -176,6 +187,13 @@ def test_services():
 
     # Calling a service with a list
     assert service_client.call_service("list_service") == [1, 2, 3]
+
+    # Check non-concurrent service
+    responses = []
+    for i in range(3):
+        responses.append(service_client.call_service("nonconcurrent_service", i))
+
+    assert responses == [0, 1, 2]
 
     service_server.destroy_node()
     service_client.destroy_node()

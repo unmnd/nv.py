@@ -141,6 +141,7 @@ class Node:
         # The services dictionary is used to keep track of exposed services, and
         # their unique topic names for calling.
         self._services = {}
+        self._service_locks = {}
 
         # Connect redis clients
         self.redis_host = redis_host or os.environ.get("NV_REDIS_HOST")
@@ -954,7 +955,12 @@ class Node:
 
         return True
 
-    def create_service(self, service_name: str, callback_function: typing.Callable):
+    def create_service(
+        self,
+        service_name: str,
+        callback_function: typing.Callable,
+        allow_parallel_calls: bool = True,
+    ):
         """
         ### Create a service.
 
@@ -968,6 +974,8 @@ class Node:
             - `service_name` (str): The name of the service to create.
             - `callback_function` (function): The function to call when a message
                 is received on the service.
+            - `allow_parallel_calls` (bool): Whether to allow multiple calls to
+                the service at the same time.
 
         ---
 
@@ -985,6 +993,17 @@ class Node:
             Used to handle requests to call a service, and respond by publishing
             any data on the requested topic.
             """
+
+            # Acquire lock
+            if not allow_parallel_calls:
+
+                # Check if the service is already being called
+                if self._service_locks[service_name].locked():
+                    self.log.debug(
+                        f"Service {service_name} is already being called. If you see this message frequently the service cannot keep up with requests!"
+                    )
+
+                self._service_locks[service_name].acquire()
 
             # Get the response topic from the message
             response_topic = message["response_topic"]
@@ -1034,6 +1053,8 @@ class Node:
                 },
             )
 
+            self._service_locks[service_name].release()
+
         # Generate a unique ID for the service
         service_id = "srv://" + str(uuid.uuid4())
 
@@ -1045,6 +1066,8 @@ class Node:
 
         # Renew node info immediately
         self._renew_node_information()
+
+        self._service_locks[service_name] = threading.Lock()
 
     def call_service(self, service_name: str, *args, **kwargs):
         """
