@@ -49,6 +49,7 @@ class Node:
         log_level: int = None,
         keep_old_parameters: bool = False,
         use_lazy_parser: bool = False,
+        workspace: str = None,
         redis_host: str = None,
         redis_port: int = 6379,
         redis_unix_socket: str = None,
@@ -79,6 +80,7 @@ class Node:
             - `use_lazy_parser` (bool): Whether to use the lazy parser
               (cysimdjson) when decoding messages for improved performance on
               large data.
+            - `workspace` (str): An optional workspace to use for topics.
             - `redis_host` (str): Force the Redis host to use.
             - `redis_port` (int): Force the Redis port to use.
             - `redis_unix_socket` (str): Force the Redis unix socket to use.
@@ -125,6 +127,14 @@ class Node:
                 self.log.debug("Using standard parser")
 
             self.use_lazy_parser = False
+
+        # Workspace used for topic names
+        self.workspace = workspace or os.environ.get("NV_WORKSPACE")
+
+        if workspace:
+            self.log.info(f"Using workspace '{workspace}'")
+        else:
+            self.log.info("No workspace specified")
 
         # The subscriptions dictionary is in the form of:
         # {
@@ -838,6 +848,36 @@ class Node:
         if topic_name in self._subscriptions:
             del self._subscriptions[topic_name]
 
+    def get_absolute_topic(self, topic_name: str):
+        """
+        ### Convert a topic name to an absolute topic name.
+
+        nv topics default to the global workspace, but this can be overridden by
+        proceeding the topic with a ".", which will automatically add the node
+        name.
+
+        A custom workspace can be added in the node setup or using an
+        environment variable.
+
+        ---
+
+        ### Parameters:
+            - `topic_name` (str): The name of the topic to convert.
+
+        ---
+
+        ### Returns:
+            The absolute topic name.
+        """
+
+        if topic_name.startswith("."):
+            topic_name = f"{self.name}{topic_name}"
+
+        if (not self.workspace is None) and (not topic_name.startswith(self.workspace)):
+            topic_name = f"{self.workspace}.{topic_name}"
+
+        return topic_name
+
     def publish(self, topic_name: str, message):
         """
         ### Publish a message to a topic.
@@ -847,13 +887,15 @@ class Node:
         ### Parameters:
             `topic_name` (str): The name of the topic to publish to.
             `message`: The message to publish.
-            `synchronous` (bool): Whether to allow synchronous access.
 
         ---
 
         ### Returns:
             bool: `True` if the message was successfully published, `False` otherwise.
         """
+
+        # Convert the topic name to an absolute topic name
+        topic_name = self.get_absolute_topic(topic_name)
 
         # Update the publishers dict
         self._publishers[topic_name] = time.time()
