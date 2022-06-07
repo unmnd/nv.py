@@ -4,7 +4,7 @@ from nv import version
 setup(
     name="nv",
     version=version.__version__,
-    description="A Python-based robot-focused framework. Emulates rclpy for ROS in many aspects, but offers improvements and alterations where needed for Navvy.",
+    description="A Python-based robot-focused framework.",
     license="All Rights Reserved",
     url="https://navvy.ai",
     author="UNMND, Ltd.",
@@ -18,6 +18,7 @@ setup(
         "numpy-quaternion==2021.11.4.15.26.3",
         "requests==2.26.0",
         "orjson==3.6.8",
+        "psutil==5.9.1",
     ],
     python_requires=">=3.8",
     entry_points={"console_scripts": ["nv=nv.__main__:main"]},

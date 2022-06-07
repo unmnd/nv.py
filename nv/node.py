@@ -25,6 +25,7 @@ import uuid
 
 import numpy as np
 import orjson as json
+import psutil
 import quaternion  # This need to be imported to extend np
 import redis
 import yaml
@@ -176,6 +177,9 @@ class Node:
         # active on the network. Each node is responsible for storing and
         # keeping it's own information active.
         self._redis_nodes = self._connect_redis(db=3)
+
+        # Get the current Python process for resource monitoring
+        self.process = psutil.Process()
 
         if self.skip_registration:
             self.log.warning("Skipping node registration...")
@@ -603,6 +607,19 @@ class Node:
         # Stop any timers or services currently running
         self.stopped.set()
 
+    def get_node_ps(self) -> dict:
+        """
+        ### Get system information about the main node process, as well as any
+        child processes.
+        """
+
+        return {
+            "pid": self.process.pid,
+            # "environ": self.process.environ(),
+            "cpu": round(self.process.cpu_percent(interval=None), 2),
+            "memory": round(self.process.memory_percent(), 2),
+        }
+
     def get_node_information(self, node_name: str = None) -> dict:
         """
         ### Return the node information dictionary.
@@ -622,6 +639,7 @@ class Node:
                 "subscriptions": list(self._subscriptions.keys()),
                 "publishers": self._publishers,
                 "services": self._services,
+                "ps": self.get_node_ps(),
             }
         else:
             return json.loads(self._redis_nodes.get(node_name))
