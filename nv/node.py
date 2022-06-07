@@ -609,8 +609,12 @@ class Node:
 
     def get_node_ps(self) -> dict:
         """
-        ### Get system information about the main node process, as well as any
-        child processes.
+        ### Get process information about the node.
+
+        ---
+
+        ### Returns:
+            A dictionary containing information about the node's process.
         """
 
         return {
