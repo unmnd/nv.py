@@ -251,6 +251,9 @@ class Node:
             self.service_response_channel, self._handle_service_callback
         )
 
+        # Used to terminate the node remotely
+        self.create_subscription("nv_terminate", self._handle_terminate_callback)
+
     def _register_node(self):
         """
         Register the node with the server.
@@ -529,6 +532,22 @@ class Node:
         # Set the event to indicate the response has been received
         self._service_requests[message["request_id"]]["event"].set()
 
+    def _handle_terminate_callback(self, message):
+        """
+        ### Handle node termination requests
+
+        ---
+
+        ### Parameters:
+            - `message` (dict): The message to handle.
+                - `message["node"]` (str): The node to terminate.
+                - `message["reason"]` (str): The reason for termination.
+        """
+
+        if message.get("node") == self.name:
+            self.log.info(f"Node terminated remotely with reason: {message.get('reason')}")
+            self.destroy_node()
+
     def _sigterm_handler(self, _signo, _stack_frame):
         """
         Handle termination signals to gracefully stop the node.
@@ -596,6 +615,7 @@ class Node:
     def destroy_node(self):
         """
         ### Destroy the node cleanly.
+
         Terminating a node without calling this function is not a major issue,
         however the node information will remain in the network for several
         seconds, which might cause issues with service calls, or if you want to
