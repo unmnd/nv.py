@@ -321,8 +321,71 @@ def decompress_message(message: bytes) -> typing.Union[str, bytes]:
     return message
 
 
+def tabulate_dict(dictionary: typing.Dict, headings: list = [], stringify=True) -> list:
+    """
+    ###  Convert a dictionary to a tabulated list.
+
+    The headings are stored in the first list item, and entries in following
+    lists.
+
+    ---
+
+    ### Parameters:
+    - `dict`: The dictionary to convert.
+    - `headings`: The headings to use. If not specified, no headings will be added.
+
+    ---
+
+    ### Example::
+
+        tabulate_dict(
+            {
+                'a': {'colour': 'red', 'value': 1},
+                'b': {'colour': 'blue', 'value': 2},
+                'c': {'colour': 'green', 'value': 3}
+            },
+            headings=['Title', 'Colour', 'Value']
+        )
+        # [['Title', 'Colour', 'Value'], ['a', 'red', 1], ['b', 'blue', 2], ['c', 'green', 3]]
+
+    """
+
+    if headings:
+        output = [headings]
+    else:
+        output = []
+
+    for key, entry in dictionary.items():
+
+        # Assert that every entry in the dictionary is a dict
+        assert isinstance(entry, dict), "All entries in the dictionary must be dicts."
+
+        # Append to output list
+        output.append([key] + list(entry.values()))
+
+    if stringify:
+
+        max_name_length = max([len(entry[0]) for entry in output])
+
+        return "\n".join(
+            [
+                "\t".join(
+                    [
+                        str(cell) if i > 0 else str(cell).ljust(max_name_length)
+                        for i, cell in enumerate(row)
+                    ]
+                )
+                for row in output
+            ]
+        )
+    else:
+        return output
+
+
 # def ratelimit(limit: int, every: float = 1.0, droppy: bool = False):
 #     """
+
+
 #     ### Function decorator which limits function calls to a specified rate.
 
 #     ---
