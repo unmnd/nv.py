@@ -275,6 +275,26 @@ def nodes_info(node_name):
     )
 
 
+@nodes.command("ps")
+def nodes_ps():
+    """
+    Get system information about each running node.
+    """
+    nodes_list = node.get_nodes_list()
+
+    nodes_ps = {}
+
+    for key in nodes_list:
+        nodes_ps[key] = node.get_node_ps(key)
+
+    # Tabulate the data
+    tabulated_nodes_ps = nv.utils.tabulate_dict(
+        nodes_ps, ["node_name"] + list(nodes_ps[nodes_list[0]].keys()), stringify=True
+    )
+
+    click.echo(tabulated_nodes_ps)
+
+
 @main.group("param")
 def param():
     """
