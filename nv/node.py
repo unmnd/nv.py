@@ -15,6 +15,7 @@ All Rights Reserved
 
 import os
 import pickle
+import platform
 import re
 import signal
 import sys
@@ -40,6 +41,8 @@ except ImportError:
 
 
 from nv import exceptions, logger, utils, version
+
+PLATFORM = platform.system() + " " + platform.release() + " " + platform.machine()
 
 
 class Node:
@@ -607,9 +610,12 @@ class Node:
         # Stop any timers or services currently running
         self.stopped.set()
 
-    def get_node_ps(self) -> dict:
+    def get_node_ps(self, node_name: str = None) -> dict:
         """
         ### Get process information about the node.
+
+        If a node name is provided, the information for that node is returned.
+        If no node name is provided, the information for the current node is returned.
 
         ---
 
@@ -617,16 +623,22 @@ class Node:
             A dictionary containing information about the node's process.
         """
 
-        return {
-            "pid": self.process.pid,
-            # "environ": self.process.environ(),
-            "cpu": round(self.process.cpu_percent(interval=None), 2),
-            "memory": round(self.process.memory_percent(), 2),
-        }
+        if node_name is None:
+            return {
+                "pid": self.process.pid,
+                # "environ": self.process.environ(),
+                "cpu": round(self.process.cpu_percent(interval=None), 2),
+                "memory": round(self.process.memory_info().rss, 2),
+                "platform": PLATFORM,
+                "lang": "Python " + platform.python_version(),
+            }
+        else:
+            return json.loads(self._redis_nodes.get(node_name))["ps"]
 
     def get_node_information(self, node_name: str = None) -> dict:
         """
         ### Return the node information dictionary.
+
         If a node name is provided, the information for that node is returned.
         If no node name is provided, the information for the current node is returned.
 
