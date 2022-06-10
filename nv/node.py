@@ -545,7 +545,9 @@ class Node:
         """
 
         if message.get("node") == self.name:
-            self.log.info(f"Node terminated remotely with reason: {message.get('reason')}")
+            self.log.info(
+                f"Node terminated remotely with reason: {message.get('reason')}"
+            )
             self.destroy_node()
 
     def _sigterm_handler(self, _signo, _stack_frame):

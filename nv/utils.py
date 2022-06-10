@@ -35,6 +35,7 @@ class LoopTimer:
         function: typing.Callable,
         autostart: bool = True,
         immediate: bool = False,
+        termination_event: Event = None,
         *args,
         **kwargs,
     ):
@@ -53,7 +54,15 @@ class LoopTimer:
             - kwargs: The keyword arguments to pass to the function.
         """
 
-        self.stopped = Event()
+        # If a termination event is supplied, disable the `stop` method
+        if termination_event:
+            self.stop = lambda: print(
+                "Cannot use `stop` method when a termination event is supplied."
+            )
+            self.stopped = termination_event
+        else:
+            self.stopped = Event()
+
         self.interval = interval
         self.function = function
         self.immediate = immediate
