@@ -90,7 +90,7 @@ class ParameterExamples(Node):
         self.log.info(f"Removed parameter: {self.get_parameter('example_parameter')}")
 
         # You can remove all parameters from a node at once
-        self.delete_parameters()
+        self.delete_parameters(node_name = "node1")
 
 
 def main():
