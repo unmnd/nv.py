@@ -341,9 +341,7 @@ def param_get(node_name, param_name):
     """
     click.echo(
         f"Getting parameter {param_name} for node {node_name}:\n"
-        + json.dumps(
-            node.get_parameter(node_name=node_name, parameter=param_name), indent=4
-        )
+        + json.dumps(node.get_parameter(node_name=node_name, name=param_name), indent=4)
     )
 
 
@@ -357,7 +355,7 @@ def param_describe(node_name, param_name):
     click.echo(
         f"Getting description for parameter {param_name} for node {node_name}:\n"
         + json.dumps(
-            node.get_parameter_description(node_name=node_name, parameter=param_name),
+            node.get_parameter_description(node_name=node_name, name=param_name),
             indent=4,
         )
     )

@@ -1278,7 +1278,7 @@ class Node:
         ---
 
         ### Parameters:
-            - `parameter` (str): The parameter name to get.
+            - `name` (str): The parameter name to get.
             - `node_name` (str): Optionally get parameters from a different node.
                 If not specified, uses the current node.
             - `fail_if_not_found` (bool): If `True`, raise an exception if the
