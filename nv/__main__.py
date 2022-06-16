@@ -184,6 +184,11 @@ def topic_pub(topic, msg, rate):
     """
     click.echo(f"Publishing to topic: {topic}")
 
+    try:
+        msg = json.loads(msg)
+    except json.JSONDecodeError:
+        pass
+
     if rate > 0:
         try:
             while True:
