@@ -14,7 +14,6 @@ All Rights Reserved
 """
 
 import os
-import pickle
 import platform
 import re
 import signal

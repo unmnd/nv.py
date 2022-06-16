@@ -11,7 +11,7 @@ All Rights Reserved
 """
 
 import numpy as np
-from nv.node import Node
+from nv import Node
 
 
 class Publisher(Node):

@@ -1,4 +1,4 @@
-from nv.node import Node
+from nv import Node
 
 
 class OddEvenCheckServer(Node):

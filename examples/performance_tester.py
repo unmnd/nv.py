@@ -6,7 +6,7 @@ from threading import Event
 
 # import cv2
 import numpy as np
-from nv.node import Node
+from nv import Node
 
 NUM_TESTS = 20
 

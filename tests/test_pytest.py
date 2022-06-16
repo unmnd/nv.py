@@ -18,7 +18,7 @@ import random
 import time
 
 from nv import utils
-from nv.node import Node
+from nv import Node
 
 
 class Subscriber(Node):

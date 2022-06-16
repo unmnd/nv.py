@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from nv.node import Node
+from nv import Node
 
 
 class ParameterExamples(Node):
