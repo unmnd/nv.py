@@ -41,7 +41,7 @@ except ImportError:
     lazy_parser = None
 
 
-from nv import exceptions, logger, utils, version
+from nv import exceptions, logger, utils
 
 PLATFORM = platform.system() + " " + platform.release() + " " + platform.machine()
 
