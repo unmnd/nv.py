@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="nv",
-    version="1.24.8",
+    version="1.24.9",
     description="A Python-based robot-focused framework.",
     license="All Rights Reserved",
     url="https://navvy.ai",

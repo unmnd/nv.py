@@ -1163,7 +1163,8 @@ class Node:
                 },
             )
 
-            self._service_locks[service_name].release()
+            if not allow_parallel_calls:
+                self._service_locks[service_name].release()
 
         # Generate a unique ID for the service
         service_id = "srv://" + str(uuid.uuid4())
