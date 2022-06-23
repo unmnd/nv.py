@@ -1056,13 +1056,18 @@ class Node:
             bool: `True` if the service is ready, `False` otherwise.
         """
 
+        self.log.debug(f"Waiting for service {service_name} to be ready...")
+
         while service_name not in self.get_services():
             if timeout <= 0:
-                return False
+                raise exceptions.ServiceNotFoundException(
+                    f"Service {service_name} not found"
+                )
 
             time.sleep(0.1)
             timeout -= 0.1
 
+        self.log.debug(f"Service {service_name} is ready.")
         return True
 
     def create_service(
