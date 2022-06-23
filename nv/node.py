@@ -22,6 +22,7 @@ import threading
 import time
 import typing
 import uuid
+from importlib import metadata
 
 # import numpy as np
 import orjson as json
@@ -110,7 +111,7 @@ class Node:
             time.sleep(10)
 
         self.log.debug(
-            f"Initialising '{name}' using framework version nv {version.__version__}"
+            f"Initialising '{name}' using framework version nv {metadata.version('nv')}"
         )
 
         # Initialise parameters
@@ -673,7 +674,7 @@ class Node:
             return {
                 "time_registered": self._start_time,
                 "time_modified": time.time(),
-                "version": version.__version__,
+                "version": metadata.version("nv"),
                 "subscriptions": list(self._subscriptions.keys()),
                 "publishers": self._publishers,
                 "services": self._services,

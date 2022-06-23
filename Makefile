@@ -29,13 +29,12 @@
 
 APP_NAME = "nv"
 REMOTE_REGISTRY = "cr.xdgfx.com"
-VERSION = $(shell cd nv && python3 -c "import version; print(version.__version__)")
+VERSION = $(shell cd nv && python3 -c "import nv;import importlib; print(importlib.metadata.version('nv'))")
 
 .PHONY: help build all tag push version
 
 help:
-	@awk '/^#/ {print $0}' $(MAKEFILE_LIST)
-
+	@awk '/^#/ {print $0}' $(MAKEFILE_LIST) | sed 's/^#//'
 
 build:
 	docker build -t $(APP_NAME) .

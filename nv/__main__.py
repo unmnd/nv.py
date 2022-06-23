@@ -15,13 +15,11 @@ import json
 import time
 import uuid
 from gettext import ngettext
+from importlib import metadata
 
 import click
 
-import nv.logger
-import nv.node
-import nv.utils
-import nv.version
+import nv
 
 node = nv.node.Node(
     f"nv_cli #{uuid.uuid4()}",
@@ -37,7 +35,7 @@ def print_version(ctx, param, value):
     if not value or ctx.resilient_parsing:
         return
     node.destroy_node()
-    click.echo(f"nv framework v{nv.version.__version__}")
+    click.echo(f"nv framework v{metadata.version(nv.__name__)}")
     ctx.exit()
 
 

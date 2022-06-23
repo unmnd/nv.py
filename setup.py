@@ -1,9 +1,8 @@
 from setuptools import setup
-from nv import version
 
 setup(
     name="nv",
-    version=version.__version__,
+    version="1.24.6",
     description="A Python-based robot-focused framework.",
     license="All Rights Reserved",
     url="https://navvy.ai",
