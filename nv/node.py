@@ -488,8 +488,19 @@ class Node:
         message = self._decode_pubsub_message(message.get("data"))
 
         # Call the corresponding callback(s)
-        for callback in self._subscriptions[topic]:
-            callback(message)
+        for i, callback in enumerate(self._subscriptions[topic]):
+
+            # Handle callback in its own thread. This is done because
+            # _handle_subscription_callback locks the PubSub Loop thread,
+            # meaning that no other data can be received while the callback
+            # below is running. This causes issues e.g. when a service is called
+            # inside a message callback.
+            thread = threading.Thread(
+                target=callback,
+                args=(message,),
+                name=f"Callback thread {i} for topic {topic}",
+            )
+            thread.start()
 
     def _handle_service_callback(self, message):
         """
