@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Custom logger module for Navvy. Includes custom formatting and the ability to
-attach to a centralised log store.
+Custom logger module for nv. Includes custom formatting and the ability to
+attach to a centralised log store (to be implemented).
 
 Callum Morrison, 2021
 UNMND, Ltd. 2021
