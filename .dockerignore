@@ -3,3 +3,5 @@
 .vscode/
 **/*.egg-info/
 build/
+dist/
+**/*.rdb
