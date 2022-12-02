@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 
 """
+Helpful example messages and related functions.
+
 One of the primary benefits of the nv framework is that data transfer can be
-done with any standard Python variable type.
+done with nearly any standard data structure.
 
 However, occasionally it's useful to transfer data in a more structured way.
 For example, 'twist' messages allow you to specify a throttle and yaw velocity,
@@ -12,15 +14,23 @@ which is useful throughout various nodes.
 At the end of the day, use of these are completely optional, but it might be
 useful to create more intercompatible nodes.
 
-An additional note, if you use this module you add a function call into each
-message generation, which typically adds about 70ns to execution time. If you
-need ultimate performance, make each message manually in your code!
-
-Callum Morrison, 2021
-UNMND, Ltd. 2021
+Callum Morrison
+UNMND, Ltd. 2022
 <callum@unmnd.com>
 
-All Rights Reserved
+This file is part of nv.
+
+nv is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+nv is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+nv. If not, see <https://www.gnu.org/licenses/>.
 """
 
 import time

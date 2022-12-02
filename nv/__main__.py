@@ -4,11 +4,23 @@
 """
 Commandline tools for nv.
 
-Callum Morrison, 2021
-UNMND, Ltd. 2021
+Callum Morrison
+UNMND, Ltd. 2022
 <callum@unmnd.com>
 
-All Rights Reserved
+This file is part of nv.
+
+nv is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+nv is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+nv. If not, see <https://www.gnu.org/licenses/>.
 """
 
 import json
@@ -120,6 +132,13 @@ class CustomChoice(click.Choice):
 @click.pass_context
 def main(ctx):
     """
+    nv  Copyright (C) 2022  UNMND Ltd.
+
+    This program comes with ABSOLUTELY NO WARRANTY. This is free software, and
+    you are welcome to redistribute it under certain conditions.
+
+    ---
+
     Main nv commandline interface.
 
     Provides a means to access nodes, echo and publish on topics, edit
@@ -244,7 +263,7 @@ def topic_subs(topic):
     click.echo(json.dumps(subscribers, indent=4))
 
 
-@main.group()
+@main.group("node")
 def nodes():
     """
     Functions related to nodes.
@@ -444,34 +463,34 @@ def service_call(service_name, arg, kwarg):
     click.echo(f"Service result: {node.call_service(service_name, *args, **kwargs)}")
 
 
-@main.group("tree")
-def tree():
-    """
-    Functions related to behaviour trees.
-    """
-    ...
+# @main.group("tree")
+# def tree():
+#     """
+#     Functions related to behaviour trees.
+#     """
+#     ...
 
 
-@tree.command("blackboard")
-def tree_blackboard():
-    """
-    Monitor the py_trees blackboard.
-    """
+# @tree.command("blackboard")
+# def tree_blackboard():
+#     """
+#     Monitor the py_trees blackboard.
+#     """
 
-    class Blackboard:
-        blackboard_state = (
-            node.call_service("get_blackboard_state").wait().get_response()
-        )
+#     class Blackboard:
+#         blackboard_state = (
+#             node.call_service("get_blackboard_state").wait().get_response()
+#         )
 
-    def echo_callback(message):
+#     def echo_callback(message):
 
-        # Update the blackboard state
-        Blackboard.blackboard_state[message["key"]] = message["current_value"]
+#         # Update the blackboard state
+#         Blackboard.blackboard_state[message["key"]] = message["current_value"]
 
-        click.echo(json.dumps(Blackboard.blackboard_state, indent=4))
+#         click.echo(json.dumps(Blackboard.blackboard_state, indent=4))
 
-    node.create_subscription("blackboard_activity", echo_callback)
-    node.spin()
+#     node.create_subscription("blackboard_activity", echo_callback)
+#     node.spin()
 
 
 if __name__ == "__main__":
