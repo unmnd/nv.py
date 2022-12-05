@@ -12,21 +12,21 @@ Parameters must be a supported JSON data type, i.e. any standard data type or JS
 
 You can also have nested parameters (hierarchical parameters), by using dot-notation. For example, `Node 1` in the example above could have parameters:
 
-```json
+```
 pet_chicken_count
 pet_chicken_names
 ```
 
 Or alternatively:
 
-```json
+```
 chickens.count
 chickens.names
 ```
 
 Actually, that’s what `Node 2` in the example has already done. Accessing their culinary preference likes can be achieved through:
 
-```json
+```
 culinary_preferences.likes
 ```
 
