@@ -3,8 +3,8 @@
 Installing the nv framework is simple, as it is distributed as a single module and is available on the Python Package Index or npm Registry for Python and Node.js editions respectively.
 
 ```bash
-pip install nv.py
-npm install nv.js
+pip install nv-framework
+npm install nv-framework
 ```
 
 Installing the module will automatically install any required dependencies. You can install globally or within a virtual environment.
