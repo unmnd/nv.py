@@ -39,8 +39,8 @@ $ npm install nv-framework
 ### Run the official Docker container
 
 ```bash
-$ docker run -it unmnd/nv.py
-$ docker run -it unmnd/nv.js
+$ docker run -it ghcr.io/unmnd/nv.py
+$ docker run -it ghcr.io/unmnd/nv.js
 ```
 
 # Introduction to nv

@@ -35,7 +35,7 @@
 # You should have received a copy of the GNU General Public License along with
 # nv. If not, see <https://www.gnu.org/licenses/>.
 
-APP_NAME = "nv"
+APP_NAME = "nv.py"
 REMOTE_REGISTRY = "ghcr.io/unmnd"
 VERSION = $(shell cd nv && python3 -c "import nv;import importlib; print(importlib.metadata.version('nv-framework'))")
 
