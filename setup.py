@@ -30,6 +30,7 @@ setup(
     name="nv-framework",
     version="1.25.0",
     description="A Python-based robot-focused framework.",
+    long_description="For more information, please visit https://github.com/unmnd/nv.py.",
     license="GPL-3.0-or-later",
     url="https://github.com/unmnd",
     author="UNMND, Ltd.",
