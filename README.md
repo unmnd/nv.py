@@ -32,7 +32,7 @@ If this is the case, please contact us at <ed@unmnd.com> with your requirements 
 ### Install using a package manager
 
 ```bash
-$ pip install nv.py
+$ pip install nv-framework
 $ npm install nv.js
 ```
 

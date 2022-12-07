@@ -123,7 +123,7 @@ class Node:
             time.sleep(10)
 
         self.log.debug(
-            f"Initialising '{name}' using framework version nv {metadata.version('nv')}"
+            f"Initialising '{name}' using framework version nv {metadata.version('nv-framework')}"
         )
 
         # Initialise parameters
@@ -697,7 +697,7 @@ class Node:
             return {
                 "time_registered": self._start_time,
                 "time_modified": time.time(),
-                "version": metadata.version("nv"),
+                "version": metadata.version("nv-framework"),
                 "subscriptions": list(self._subscriptions.keys()),
                 "publishers": self._publishers,
                 "services": self._services,

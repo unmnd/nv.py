@@ -27,8 +27,8 @@ nv. If not, see <https://www.gnu.org/licenses/>.
 from setuptools import setup
 
 setup(
-    name="nv",
-    version="1.24.10",
+    name="nv-framework",
+    version="1.24.11",
     description="A Python-based robot-focused framework.",
     license="GPL-3.0-or-later",
     url="https://github.com/unmnd",

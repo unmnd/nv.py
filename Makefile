@@ -37,7 +37,7 @@
 
 APP_NAME = "nv"
 REMOTE_REGISTRY = "ghcr.io/unmnd"
-VERSION = $(shell cd nv && python3 -c "import nv;import importlib; print(importlib.metadata.version('nv'))")
+VERSION = $(shell cd nv && python3 -c "import nv;import importlib; print(importlib.metadata.version('nv-framework'))")
 
 .PHONY: help build all tag push version
 
