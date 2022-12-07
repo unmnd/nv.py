@@ -29,16 +29,19 @@ The name of the topic is the unique key used to distinguish between different ch
 
 Publish a string on the topic, `"hello_world"`.
 
+`py`
 ```python
 self.publish("hello_world", "If not now, when?")
 ```
 
-```jsx
+`js`
+```javascript
 this.publish("hello_world", "I reject your reality and substitute my own.");
 ```
 
 Publish an object on the topic, `“test_topic”`.
 
+`py`
 ```python
 data = [
     {"name": "St James Craig", "built": 1874, "flag": "au"},
@@ -48,7 +51,8 @@ data = [
 self.publish("test_topic", data)
 ```
 
-```jsx
+`js`
+```javascript
 const data = [
     { name: "St James Craig", built: 1874, flag: "au" },
     { name: "Elegant", built: 1889, flag: "nl" },
@@ -59,6 +63,7 @@ this.publish("test_topic", data);
 
 Subscribe to the topic `“gps_position”`.
 
+`py`
 ```python
 def handle_callback(self, message):
     ...
@@ -66,7 +71,8 @@ def handle_callback(self, message):
 self.create_subscription("gps_position", self.handle_callback)
 ```
 
-```jsx
+`js`
+```javascript
 function handleCallback(message) {
     ...
 }
@@ -86,6 +92,7 @@ The main difference is that after any _call_ to a service, the client (the node 
 
 Call a service available at `“get_current_weather”` with no args, then a single positional argument.
 
+`py`
 ```python
 current_weather = self.call_service("get_current_weather")
 # Sunny, 23°C
@@ -94,7 +101,8 @@ current_weather_sydney = self.call_service("get_current_weather", "Sydney, AU")
 # Cloudy, 18°C
 ```
 
-```jsx
+`js`
+```javascript
 const current_weather = this.callService("get_current_weather");
 // Sunny, 23°C
 
@@ -106,6 +114,7 @@ const current_weather_sydney = this.callService("get_current_weather", [
 
 Create a service at `“greet_me”` which returns a string.
 
+`py`
 ```python
 def greeting_service(self):
     return "Hello and welcome!"
@@ -113,7 +122,8 @@ def greeting_service(self):
 self.create_service("greet_me", self.greeting_service)
 ```
 
-```jsx
+`js`
+```javascript
 function greetingService() {
     return "Hello and welcome!";
 }

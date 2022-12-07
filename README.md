@@ -12,12 +12,12 @@
 
 **nv** is built on two core concepts:
 
-1. Simplicity - completing tasks and reaching development milestones should be as easy as possible for the developer, without unecessary boilerplate, configuration and setup processes, or additional dependendencies that might not be used.
+1. Simplicity - completing tasks and reaching development milestones should be as easy as possible for the developer, without unecessary boilerplate, configuration and setup processes, or additional dependencies that might not be used.
 2. Flexibility - anything a developer wants to do should be possible with minimal additional work or implementation procedures.
 
 While a lot of the concepts and interfaces within **nv** are similar to another
 popular robot framework, ROS (Robot Operating System), there are numerous
-changes and tweaks to bring robot development forward into the modern era.
+changes and tweaks which make **nv** a more suitable framework for many developers.
 
 # Licensing
 
@@ -33,7 +33,7 @@ If this is the case, please contact us at <ed@unmnd.com> with your requirements 
 
 ```bash
 $ pip install nv-framework
-$ npm install nv.js
+$ npm install nv-framework
 ```
 
 ### Run the official Docker container

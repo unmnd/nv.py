@@ -32,21 +32,25 @@ culinary_preferences.likes
 
 Getting a parameter is easy, and can be done at any point within a node.
 
+`py`
 ```python
 current_menu = self.get_parameter("current_menu")
 ```
 
-```jsx
+`js`
+```javascript
 const currentMenu = await this.getParameter("current_menu");
 ```
 
 Setting a parameter can be done in several ways. The simplest is with a declarative function:
 
+`py`
 ```python
 self.set_parameter("current_menu", ["Tomato soup", "Pork and apple sauce", "Chocolate trifle"])
 ```
 
-```jsx
+`js`
+```javascript
 this.setParameter("current_menu", [
     "Tomato soup",
     "Pork and apple sauce",
@@ -56,6 +60,7 @@ this.setParameter("current_menu", [
 
 You can also set more than one parameter at once:
 
+`py`
 ```python
 self.set_parameters(
     [
@@ -71,7 +76,8 @@ self.set_parameters(
 )
 ```
 
-```jsx
+`js`
+```javascript
 this.setParameters([
     {
         name: "menu2",
@@ -120,11 +126,13 @@ node1:
 
 These files can be stored somewhere accessible by the running node, and can be parsed and set automatically with:
 
+`py`
 ```python
 self.set_parameters_from_file(CONFIG_FILE_PATH)
 ```
 
-```jsx
+`js`
+```javascript
 this.setParametersFromFile(CONFIG_FILE_PATH);
 ```
 
