@@ -28,7 +28,7 @@ from setuptools import setup
 
 setup(
     name="nv-framework",
-    version="1.24.11",
+    version="1.25.0",
     description="A Python-based robot-focused framework.",
     license="GPL-3.0-or-later",
     url="https://github.com/unmnd",

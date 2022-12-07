@@ -1,4 +1,4 @@
-# NV Dockerfile
+# nv Dockerfile
 # This Dockerfile is used as a base image for the Python version of the
 # nv framework.
 #
