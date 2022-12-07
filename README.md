@@ -1,4 +1,8 @@
-# nv Framework Docs
+# nv Robotics Framework
+
+[![PyPI
+package](https://github.com/unmnd/nv.py/actions/workflows/python-publish.yml/badge.svg)](https://github.com/unmnd/nv.py/actions/workflows/python-publish.yml)
+[![ghcr.io container)](https://github.com/unmnd/nv.py/actions/workflows/docker-publish.yml)
 
 ### Welcome to the documentation for **nv (pronounced _envy_)**, a new robotics framework designed to make robot development easier, and more accessible than ever before.
 
