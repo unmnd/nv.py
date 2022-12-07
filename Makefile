@@ -46,6 +46,7 @@ help:
 
 build:
 	docker build -t $(APP_NAME) .
+	python3 setup.py sdist
 
 tag: tag-latest tag-version
 
@@ -57,7 +58,7 @@ tag-version:
 	@echo "Tagging image as '$(VERSION)'"
 	docker tag $(APP_NAME) $(REMOTE_REGISTRY)/$(APP_NAME):$(VERSION)
 
-push: push-latest push-version
+push: push-latest push-version push-pypi
 
 push-latest: tag-latest
 	@echo "Pushing image as 'latest'"
@@ -66,6 +67,9 @@ push-latest: tag-latest
 push-version: tag-version
 	@echo "Pushing image as '$(VERSION)'"
 	docker push $(REMOTE_REGISTRY)/$(APP_NAME):$(VERSION)
+
+push-pypi:
+	twine upload --skip-existing dist/nv-framework-${VERSION}.tar.gz
 
 all: build push
 
