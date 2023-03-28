@@ -39,7 +39,7 @@ setup(
     install_requires=[
         "pyyaml==6.0",
         "click==8.0.3",
-        "redis==3.5.3",
+        "redis==4.5.3",
         # "numpy==1.20.3",
         # "numpy-quaternion==2021.11.4.15.26.3",
         "orjson==3.6.8",
